@@ -1,0 +1,207 @@
+{
+  "schema_version": "1.0",
+  "assignment_id": "course-agent-project-2026-public-handbook-v1",
+  "split": "public",
+  "benchmarks": {
+    "mcpmark": {
+      "enabled": true,
+      "runner": "mcpmark",
+      "description": "MCPMark public interface cases.",
+      "cases": [
+        {
+          "case_key": "mcp_filesystem_file_context_pattern_matching",
+          "case_id": "filesystem/file_context/pattern_matching",
+          "official_task_path": "filesystem/standard/file_context/pattern_matching",
+          "description": "Official MCPMark filesystem task.",
+          "weight": 1.0
+        },
+        {
+          "case_key": "mcp_filesystem_threestudio_requirements_completion",
+          "case_id": "filesystem/threestudio/requirements_completion",
+          "official_task_path": "filesystem/standard/threestudio/requirements_completion",
+          "description": "Official MCPMark filesystem task.",
+          "weight": 1.0
+        },
+        {
+          "case_key": "mcp_postgres_employees_management_structure_analysis",
+          "case_id": "postgres/employees/management_structure_analysis",
+          "official_task_path": "postgres/standard/employees/management_structure_analysis",
+          "description": "Official MCPMark Postgres task.",
+          "weight": 1.0
+        },
+        {
+          "case_key": "mcp_postgres_dvdrental_customer_analysis_fix",
+          "case_id": "postgres/dvdrental/customer_analysis_fix",
+          "official_task_path": "postgres/standard/dvdrental/customer_analysis_fix",
+          "description": "Official MCPMark Postgres task.",
+          "weight": 1.0
+        },
+        {
+          "case_key": "mcp_filesystem_folder_structure_structure_analysis",
+          "case_id": "filesystem/folder_structure/structure_analysis",
+          "official_task_path": "filesystem/standard/folder_structure/structure_analysis",
+          "description": "Official MCPMark filesystem task.",
+          "weight": 1.0
+        },
+        {
+          "case_key": "mcp_postgres_lego_transactional_inventory_transfer",
+          "case_id": "postgres/lego/transactional_inventory_transfer",
+          "official_task_path": "postgres/standard/lego/transactional_inventory_transfer",
+          "description": "Official MCPMark Postgres task.",
+          "weight": 1.0
+        },
+        {
+          "case_key": "mcp_postgres_chinook_employee_hierarchy_management",
+          "case_id": "postgres/chinook/employee_hierarchy_management",
+          "official_task_path": "postgres/standard/chinook/employee_hierarchy_management",
+          "description": "Official MCPMark Postgres task.",
+          "weight": 1.0
+        },
+        {
+          "case_key": "mcp_postgres_sports_team_roster_management",
+          "case_id": "postgres/sports/team_roster_management",
+          "official_task_path": "postgres/standard/sports/team_roster_management",
+          "description": "Official MCPMark Postgres task.",
+          "weight": 1.0
+        }
+      ]
+    },
+    "tau2_airline": {
+      "enabled": true,
+      "runner": "tau2_airline",
+      "description": "tau2 airline public interface cases.",
+      "domain": "airline",
+      "cases": [
+        {
+          "case_key": "tau2_49",
+          "case_id": "49",
+          "description": "Official tau2 airline task.",
+          "weight": 1.0
+        },
+        {
+          "case_key": "tau2_40",
+          "case_id": "40",
+          "description": "Official tau2 airline task.",
+          "weight": 1.0
+        },
+        {
+          "case_key": "tau2_20",
+          "case_id": "20",
+          "description": "Official tau2 airline task.",
+          "weight": 1.0
+        },
+        {
+          "case_key": "tau2_28",
+          "case_id": "28",
+          "description": "Official tau2 airline task.",
+          "weight": 1.0
+        },
+        {
+          "case_key": "tau2_36",
+          "case_id": "36",
+          "description": "Official tau2 airline task.",
+          "weight": 1.0
+        },
+        {
+          "case_key": "tau2_17",
+          "case_id": "17",
+          "description": "Official tau2 airline task.",
+          "weight": 1.0
+        }
+      ]
+    },
+    "deepplanning": {
+      "enabled": true,
+      "runner": "deepplanning",
+      "description": "DeepPlanning public interface cases.",
+      "domain": "shopping",
+      "cases": [
+        {
+          "case_key": "dp_level_1_case_10",
+          "case_id": "shopping/level_1/case_10",
+          "description": "Official DeepPlanning Shopping task.",
+          "weight": 1.0
+        },
+        {
+          "case_key": "dp_level_1_case_15",
+          "case_id": "shopping/level_1/case_15",
+          "description": "Official DeepPlanning Shopping task.",
+          "weight": 1.0
+        },
+        {
+          "case_key": "dp_level_2_case_18",
+          "case_id": "shopping/level_2/case_18",
+          "description": "Official DeepPlanning Shopping task.",
+          "weight": 1.0
+        },
+        {
+          "case_key": "dp_level_2_case_33",
+          "case_id": "shopping/level_2/case_33",
+          "description": "Official DeepPlanning Shopping task.",
+          "weight": 1.0
+        },
+        {
+          "case_key": "dp_level_3_case_18",
+          "case_id": "shopping/level_3/case_18",
+          "description": "Official DeepPlanning Shopping task.",
+          "weight": 1.0
+        },
+        {
+          "case_key": "dp_level_3_case_14",
+          "case_id": "shopping/level_3/case_14",
+          "description": "Official DeepPlanning Shopping task.",
+          "weight": 1.0
+        }
+      ]
+    }
+  },
+  "limits": {
+    "model_input_tokens": 64000,
+    "model_output_tokens": 4096,
+    "case_timeout_sec": 300,
+    "llm_max_attempts": 2,
+    "benchmarks": {
+      "mcpmark": {
+        "max_agent_turns": 80,
+        "max_tool_calls_per_turn": 4,
+        "max_mutating_tool_calls_per_turn": 1
+      },
+      "tau2_airline": {
+        "max_agent_turns": 100,
+        "max_environment_steps": 200,
+        "max_tool_calls_per_turn": 3,
+        "max_mutating_tool_calls_per_turn": 1
+      },
+      "deepplanning": {
+        "max_model_calls": 100,
+        "max_tool_calls_per_turn": 5,
+        "max_mutating_tool_calls_per_turn": 3
+      }
+    }
+  },
+  "scoring": {
+    "method": "binary_case_count_average",
+    "weights": {
+      "per_case": 1.0
+    },
+    "summary_fields": {
+      "total_grading_score": "sum of binary per-case grading_score values; equals the number of completed cases when all selected cases finish",
+      "average_grading_score": "total_grading_score divided by completed_cases",
+      "total_analysis_score": "sum of benchmark-native analysis_score values",
+      "average_analysis_score": "total_analysis_score divided by completed_cases"
+    },
+    "baseline_anchors": {
+      "mcpmark": 0.3125,
+      "tau2_airline": 0.4166666666666667,
+      "deepplanning": 0.16666666666666666
+    },
+    "baseline_anchors_note": "Reference only: benchmark-level average scores measured from TA baseline-agent runs on comparable public/hidden case sets. These anchors are provided to contextualize baseline difficulty."
+  },
+  "selection_source": {
+    "selection_manifest": "short_output_iid_manifest.json",
+    "selection_date": "2026-08-31",
+    "selection_manifest_sha256": "d8b5843e37bdce7968372163eb8449316f70eca30aff732dedb29ace7bd35e01",
+    "student_handbook": "COMP5211_AGENT_PROJECT_STUDENT_HANDBOOK_ZH.docx",
+    "student_handbook_sha256": "180c8ce5167527fabea9a677f9234ceb1886e6ea7cd0962a22ce4ff221c4c1e8"
+  }
+}

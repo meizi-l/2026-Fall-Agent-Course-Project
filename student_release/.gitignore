@@ -1,0 +1,17 @@
+.env
+env.student.local.sh
+*.local.sh
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+runs/
+trajectories/
+trajectories_smoke/
+artifacts/
+results/
+*.log
+*.tmp
+submission.json
+submission.zip
+submission_build_log.json

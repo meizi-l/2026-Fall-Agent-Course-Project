@@ -1,0 +1,28 @@
+[project]
+name = "course-agent-starter"
+version = "0.1.0"
+description = "Course agent project starter using the course local runner"
+requires-python = ">=3.11"
+dependencies = [
+    "openai>=2,<3",
+]
+
+[project.scripts]
+course-agent-process = "course_agent.agent_process:main"
+run-tasks = "public_runner.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8,<9",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/course_agent", "public_runner"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "."]

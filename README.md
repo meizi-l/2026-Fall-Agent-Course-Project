@@ -39,6 +39,14 @@ grading uses **40 hidden cases** from the same benchmarks and task families,
 with different task instances. Public cases are for iteration and interface
 validation and do not contribute to the final project score.
 
+The benchmark-specific course baseline completion rates are:
+
+| Benchmark | Course baseline completion rate |
+| --- | ---: |
+| MCPMark | 31.25% |
+| tau2 Airline | 41.67% |
+| DeepPlanning Shopping | 16.67% |
+
 ## Scoring And Grading
 
 Each hidden case receives binary course credit:

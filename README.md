@@ -39,6 +39,9 @@ grading uses **40 hidden cases** from the same benchmarks and task families,
 with different task instances. Public cases are for iteration and interface
 validation and do not contribute to the final project score.
 
+Details of the public cases, including case identifiers and benchmark-specific
+settings, are defined in `student_release/task_configs/public_cases.json`.
+
 The benchmark-specific course baseline completion rates are:
 
 | Benchmark | Course baseline completion rate |

@@ -95,7 +95,12 @@ source env.student.local.sh
 ```
 
 Do not submit `env.student.local.sh`. Final grading uses staff/course-owned
-credentials.
+credentials injected by grading workers for the school Azure/HKUST endpoint;
+student-submitted local env files are ignored during final grading. For local
+experiments, configure your own HKUST API key and endpoint according to:
+
+- [HKUST API Developer Portal](https://hkust.developer.azure-api.net/)
+- [HKUST Azure OpenAI API Service](https://itso.hkust.edu.hk/services/it-infrastructure/azure-openai-api-service)
 
 The starter includes `course_agent.runtime.CourseLLMClient`, a synchronous
 OpenAI SDK wrapper. It reads `COURSE_API_KEY`, `AZURE_OPENAI_ENDPOINT`,

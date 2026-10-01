@@ -7,16 +7,21 @@ This directory contains the release-path course project code.
 - `shared/`: schemas and policy documents shared by student and staff tooling.
 - `third_party/`: setup scripts for official public benchmark environments. Downloaded checkouts such as `tau2-bench/` are local and gitignored.
 
-The release path uses a course-owned local runner. Students implement the
-provided `StudentAgent` hooks; they do not need to run an A2A server.
-Public and hidden task configs use the same JSON schema; staff hidden configs
-swap in private cases while keeping the same locked runner/protocol interface.
+The release path uses the locked course runner in
+`student_release/public_runner` to call the provided `StudentAgent` interface.
+Students implement the `StudentAgent` hooks. Public and hidden task configs use
+the same JSON schema; staff hidden configs swap in private cases while keeping
+the same locked runner/protocol interface.
 
 ## Grading Baseline And Local Development
 
-The course is designed so students can develop on different laptops while staff
-grading remains fair and reproducible. We test the release on macOS, and final
-grading is expected on a staff-controlled server with this baseline:
+The course provides pinned student-side dependencies, pinned benchmark
+checkouts where practical, and locked runner/protocol interfaces so students can
+develop on different laptops while staff grading remains as fair and
+reproducible as practical. Exact host-level reproducibility is not guaranteed
+because container runtimes and system packages remain self-managed. We test the
+release on macOS, and final grading is expected on a staff-controlled server
+with this baseline:
 
 ```text
 OS: AlmaLinux 9.8 (Olive Jaguar), x86_64
@@ -26,9 +31,9 @@ Student package Python: course_project/.python-version, currently Python 3.11
 ```
 
 We have tested the current release path on a macOS MacBook during development.
-Students do not need to run AlmaLinux locally. Local macOS, Linux, or other
-reasonable setups are acceptable as long as the submitted agent works through
-the locked course interfaces and `third_party` checks described below.
+Local macOS, Linux, or other reasonable setups are acceptable as long as the
+submitted agent works through the locked course interfaces and `third_party`
+checks described below.
 
 Benchmark environments are intentionally separated from the student agent code.
 The course pins benchmark checkouts and benchmark-side dependencies where that
@@ -57,6 +62,14 @@ export COURSE_API_KEY=...
 export AZURE_OPENAI_ENDPOINT=...
 export AZURE_OPENAI_API_VERSION=...
 ```
+
+Final grading uses staff/course-owned credentials injected by grading workers
+for the school Azure/HKUST endpoint. Student-submitted local env files are
+ignored during final grading. For local experiments, students should configure
+their own HKUST API key and endpoint according to:
+
+- [HKUST API Developer Portal](https://hkust.developer.azure-api.net/)
+- [HKUST Azure OpenAI API Service](https://itso.hkust.edu.hk/services/it-infrastructure/azure-openai-api-service)
 
 ## Locked And Editable Files
 

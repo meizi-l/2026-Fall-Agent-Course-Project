@@ -34,7 +34,7 @@ Agents are evaluated on three benchmark environments:
 Together, these benchmarks test planning, tool selection, state tracking, error
 handling, and effective use of language models.
 
-Students receive **20 public cases** for development and debugging. Final
+Students receive **40 public cases** for development and debugging. Final
 grading uses **40 hidden cases** from the same benchmarks and task families,
 with different task instances. Public cases are for iteration and interface
 validation and do not contribute to the final project score.

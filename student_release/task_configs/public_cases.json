@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "assignment_id": "course-agent-project-2026-public-handbook-v1",
+  "assignment_id": "course-agent-project-2026-public-40-v2",
   "split": "public",
   "benchmarks": {
     "mcpmark": {
@@ -13,56 +13,112 @@
           "case_id": "filesystem/file_context/pattern_matching",
           "official_task_path": "filesystem/standard/file_context/pattern_matching",
           "description": "Official MCPMark filesystem task.",
-          "weight": 1.0
+          "weight": 1
         },
         {
           "case_key": "mcp_filesystem_threestudio_requirements_completion",
           "case_id": "filesystem/threestudio/requirements_completion",
           "official_task_path": "filesystem/standard/threestudio/requirements_completion",
           "description": "Official MCPMark filesystem task.",
-          "weight": 1.0
+          "weight": 1
         },
         {
           "case_key": "mcp_postgres_employees_management_structure_analysis",
           "case_id": "postgres/employees/management_structure_analysis",
           "official_task_path": "postgres/standard/employees/management_structure_analysis",
           "description": "Official MCPMark Postgres task.",
-          "weight": 1.0
+          "weight": 1
         },
         {
           "case_key": "mcp_postgres_dvdrental_customer_analysis_fix",
           "case_id": "postgres/dvdrental/customer_analysis_fix",
           "official_task_path": "postgres/standard/dvdrental/customer_analysis_fix",
           "description": "Official MCPMark Postgres task.",
-          "weight": 1.0
+          "weight": 1
         },
         {
           "case_key": "mcp_filesystem_folder_structure_structure_analysis",
           "case_id": "filesystem/folder_structure/structure_analysis",
           "official_task_path": "filesystem/standard/folder_structure/structure_analysis",
           "description": "Official MCPMark filesystem task.",
-          "weight": 1.0
+          "weight": 1
         },
         {
           "case_key": "mcp_postgres_lego_transactional_inventory_transfer",
           "case_id": "postgres/lego/transactional_inventory_transfer",
           "official_task_path": "postgres/standard/lego/transactional_inventory_transfer",
           "description": "Official MCPMark Postgres task.",
-          "weight": 1.0
+          "weight": 1
         },
         {
           "case_key": "mcp_postgres_chinook_employee_hierarchy_management",
           "case_id": "postgres/chinook/employee_hierarchy_management",
           "official_task_path": "postgres/standard/chinook/employee_hierarchy_management",
           "description": "Official MCPMark Postgres task.",
-          "weight": 1.0
+          "weight": 1
         },
         {
           "case_key": "mcp_postgres_sports_team_roster_management",
           "case_id": "postgres/sports/team_roster_management",
           "official_task_path": "postgres/standard/sports/team_roster_management",
           "description": "Official MCPMark Postgres task.",
-          "weight": 1.0
+          "weight": 1
+        },
+        {
+          "case_key": "mcp_filesystem_file_property_size_classification",
+          "case_id": "filesystem/file_property/size_classification",
+          "official_task_path": "filesystem/standard/file_property/size_classification",
+          "description": "Official benchmark task.",
+          "weight": 1
+        },
+        {
+          "case_key": "mcp_filesystem_desktop_music_report",
+          "case_id": "filesystem/desktop/music_report",
+          "official_task_path": "filesystem/standard/desktop/music_report",
+          "description": "Official benchmark task.",
+          "weight": 1
+        },
+        {
+          "case_key": "mcp_filesystem_desktop_template_contact_information",
+          "case_id": "filesystem/desktop_template/contact_information",
+          "official_task_path": "filesystem/standard/desktop_template/contact_information",
+          "description": "Official benchmark task.",
+          "weight": 1
+        },
+        {
+          "case_key": "mcp_filesystem_student_database_duplicate_name",
+          "case_id": "filesystem/student_database/duplicate_name",
+          "official_task_path": "filesystem/standard/student_database/duplicate_name",
+          "description": "Official benchmark task.",
+          "weight": 1
+        },
+        {
+          "case_key": "mcp_filesystem_votenet_debugging",
+          "case_id": "filesystem/votenet/debugging",
+          "official_task_path": "filesystem/standard/votenet/debugging",
+          "description": "Official benchmark task.",
+          "weight": 1
+        },
+        {
+          "case_key": "mcp_postgres_employees_employee_project_tracking",
+          "case_id": "postgres/employees/employee_project_tracking",
+          "official_task_path": "postgres/standard/employees/employee_project_tracking",
+          "description": "Official benchmark task.",
+          "weight": 1
+        },
+        {
+          "case_key": "mcp_postgres_employees_executive_dashboard_automation",
+          "case_id": "postgres/employees/executive_dashboard_automation",
+          "official_task_path": "postgres/standard/employees/executive_dashboard_automation",
+          "description": "Official benchmark task.",
+          "weight": 1
+        },
+        {
+          "case_key": "mcp_postgres_chinook_customer_data_migration",
+          "case_id": "postgres/chinook/customer_data_migration",
+          "official_task_path": "postgres/standard/chinook/customer_data_migration",
+          "description": "Official benchmark task.",
+          "weight": 1
         }
       ]
     },
@@ -76,37 +132,73 @@
           "case_key": "tau2_49",
           "case_id": "49",
           "description": "Official tau2 airline task.",
-          "weight": 1.0
+          "weight": 1
         },
         {
           "case_key": "tau2_40",
           "case_id": "40",
           "description": "Official tau2 airline task.",
-          "weight": 1.0
+          "weight": 1
         },
         {
           "case_key": "tau2_20",
           "case_id": "20",
           "description": "Official tau2 airline task.",
-          "weight": 1.0
+          "weight": 1
         },
         {
           "case_key": "tau2_28",
           "case_id": "28",
           "description": "Official tau2 airline task.",
-          "weight": 1.0
+          "weight": 1
         },
         {
           "case_key": "tau2_36",
           "case_id": "36",
           "description": "Official tau2 airline task.",
-          "weight": 1.0
+          "weight": 1
         },
         {
           "case_key": "tau2_17",
           "case_id": "17",
           "description": "Official tau2 airline task.",
-          "weight": 1.0
+          "weight": 1
+        },
+        {
+          "case_key": "tau2_8",
+          "case_id": "8",
+          "description": "Official benchmark task.",
+          "weight": 1
+        },
+        {
+          "case_key": "tau2_18",
+          "case_id": "18",
+          "description": "Official benchmark task.",
+          "weight": 1
+        },
+        {
+          "case_key": "tau2_32",
+          "case_id": "32",
+          "description": "Official benchmark task.",
+          "weight": 1
+        },
+        {
+          "case_key": "tau2_2",
+          "case_id": "2",
+          "description": "Official benchmark task.",
+          "weight": 1
+        },
+        {
+          "case_key": "tau2_6",
+          "case_id": "6",
+          "description": "Official benchmark task.",
+          "weight": 1
+        },
+        {
+          "case_key": "tau2_25",
+          "case_id": "25",
+          "description": "Official benchmark task.",
+          "weight": 1
         }
       ]
     },
@@ -120,37 +212,73 @@
           "case_key": "dp_level_1_case_10",
           "case_id": "shopping/level_1/case_10",
           "description": "Official DeepPlanning Shopping task.",
-          "weight": 1.0
+          "weight": 1
         },
         {
           "case_key": "dp_level_1_case_15",
           "case_id": "shopping/level_1/case_15",
           "description": "Official DeepPlanning Shopping task.",
-          "weight": 1.0
+          "weight": 1
         },
         {
           "case_key": "dp_level_2_case_18",
           "case_id": "shopping/level_2/case_18",
           "description": "Official DeepPlanning Shopping task.",
-          "weight": 1.0
+          "weight": 1
         },
         {
           "case_key": "dp_level_2_case_33",
           "case_id": "shopping/level_2/case_33",
           "description": "Official DeepPlanning Shopping task.",
-          "weight": 1.0
+          "weight": 1
         },
         {
           "case_key": "dp_level_3_case_18",
           "case_id": "shopping/level_3/case_18",
           "description": "Official DeepPlanning Shopping task.",
-          "weight": 1.0
+          "weight": 1
         },
         {
           "case_key": "dp_level_3_case_14",
           "case_id": "shopping/level_3/case_14",
           "description": "Official DeepPlanning Shopping task.",
-          "weight": 1.0
+          "weight": 1
+        },
+        {
+          "case_key": "dp_level_1_case_29",
+          "case_id": "shopping/level_1/case_29",
+          "description": "Official benchmark task.",
+          "weight": 1
+        },
+        {
+          "case_key": "dp_level_1_case_50",
+          "case_id": "shopping/level_1/case_50",
+          "description": "Official benchmark task.",
+          "weight": 1
+        },
+        {
+          "case_key": "dp_level_2_case_46",
+          "case_id": "shopping/level_2/case_46",
+          "description": "Official benchmark task.",
+          "weight": 1
+        },
+        {
+          "case_key": "dp_level_2_case_43",
+          "case_id": "shopping/level_2/case_43",
+          "description": "Official benchmark task.",
+          "weight": 1
+        },
+        {
+          "case_key": "dp_level_3_case_1",
+          "case_id": "shopping/level_3/case_1",
+          "description": "Official benchmark task.",
+          "weight": 1
+        },
+        {
+          "case_key": "dp_level_3_case_9",
+          "case_id": "shopping/level_3/case_9",
+          "description": "Official benchmark task.",
+          "weight": 1
         }
       ]
     }
@@ -182,7 +310,7 @@
   "scoring": {
     "method": "binary_case_count_average",
     "weights": {
-      "per_case": 1.0
+      "per_case": 1
     },
     "summary_fields": {
       "total_grading_score": "sum of binary per-case grading_score values; equals the number of completed cases when all selected cases finish",

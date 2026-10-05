@@ -253,3 +253,9 @@ code, model weights, databases, nested archives, and hidden or private files
 must not be included in submissions. Staff grading reruns the submitted agent
 in the official grading environment with staff-owned benchmark setup, 40 hidden
 task configs, and staff-controlled credentials.
+
+## Support and Contributions
+
+Please report bugs or ambiguities through GitHub Issues. Documentation-only
+corrections may be proposed via pull request. Do not include solution code or
+private API keys in Issues or PRs.

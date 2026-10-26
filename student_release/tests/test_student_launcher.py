@@ -14,12 +14,16 @@ def test_isolated_student_launch_uses_separate_token_and_allowlist(tmp_path, mon
     monkeypatch.setenv("COURSE_STUDENT_API_KEY", "student-token")
     monkeypatch.setenv("COURSE_API_KEY", "staff-token")
     monkeypatch.setenv("STAFF_HIDDEN_PATH", "/secret/cases.json")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://hkust.azure-api.net/hkust-genai/v1")
+    monkeypatch.setenv("AZURE_OPENAI_API_KEY", "old-staff-token")
+    monkeypatch.setenv("AZURE_API_BASE", "https://old.invalid")
     argv, env = student_process_launch(tmp_path, sys.executable)
 
     assert argv == ["sandbox", str(tmp_path), sys.executable]
     assert env["COURSE_API_KEY"] == "student-token"
-    assert env["AZURE_OPENAI_API_KEY"] == "student-token"
+    assert not any(name.startswith("AZURE_") for name in env)
     assert env["OPENAI_API_KEY"] == "student-token"
+    assert env["OPENAI_BASE_URL"] == "https://hkust.azure-api.net/hkust-genai/v1"
     assert "STAFF_HIDDEN_PATH" not in env
     assert "staff-token" not in env.values()
 

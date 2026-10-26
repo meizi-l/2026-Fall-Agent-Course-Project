@@ -65,10 +65,8 @@ def _mcpmark_request(tools, observation=None):
 
 def _clear_llm_env(monkeypatch):
     for name in (
-        "AZURE_OPENAI_ENDPOINT",
-        "AZURE_OPENAI_API_VERSION",
-        "AZURE_OPENAI_DEPLOYMENT",
-        "AZURE_OPENAI_API_KEY",
+        "COURSE_API_KEY",
+        "OPENAI_BASE_URL",
     ):
         monkeypatch.delenv(name, raising=False)
 

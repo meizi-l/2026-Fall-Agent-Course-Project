@@ -34,10 +34,22 @@ Case result objects include `run_id`, `benchmark`, `case_id`, `case_key`,
 `previous_status`.
 `case_id` is the benchmark's official identifier; `case_key` is the short runner selector used in CLI commands and artifact paths.
 
+For official tau2 Airline, each recorded `request.observation.domain_policy`
+contains the full benchmark policy supplied to the adapter. It accompanies
+user messages, single tool results, and multiple tool results without replacing
+their existing fields. The policy is also delivered to the student subprocess
+through the same JSONL request; it is not a new top-level protocol field.
+
 LLM usage counters are populated when the student agent uses the provided
 `CourseLLMClient`: `llm_api_call_count`, `llm_successful_call_count`,
 `llm_failed_call_count`, `llm_prompt_tokens`, `llm_completion_tokens`,
-`llm_total_tokens`, and `llm_estimated_input_tokens`. `llm_usage_path` is present
+`llm_total_tokens`, and `llm_estimated_input_tokens`. `llm_interrupted_call_count`
+counts started SDK attempts without a completion event. `llm_api_call_count`
+includes these attempts once; their token usage is unknown, not zero.
+`llm_usage_complete` is false when a call is interrupted, returned usage is
+missing, or the usage sidecar has a parse error. Summary counters use the latest
+case attempts; summary completeness is false if any of those attempts is incomplete.
+`llm_usage_path` is present
 when a per-attempt usage sidecar exists. These fields do not include tau2's
 benchmark-side user simulator LLM and are not guaranteed to include direct API
 calls that bypass `CourseLLMClient`.
@@ -120,11 +132,28 @@ written after all selected cases finish and after the single automatic retry for
 runtime/setup errors, so it reflects the latest available result per selected
 case.
 
-LLM usage events appended to trajectories have `event: "llm_call"`, `status`,
-`provider`, `model`, `deployment`, `attempt`, `estimated_input_tokens`, and a
+Each SDK attempt records `event: "llm_call_started"` before the request and a
+matching `event: "llm_call"` with the same `call_id` when it returns or errors.
+After process cleanup, unmatched starts produce `llm_call_interrupted` events
+in the formal trajectory. Completed usage events have `status`,
+`provider`, `model`, `attempt`, `estimated_input_tokens`, and a
 `usage` object with API-returned token counts when available. The runner records
 token totals, not currency cost; cost estimates require an external model price
-table.
+table. Current events use `provider: "hkust_genai"`. Older Azure runs may also
+include `deployment`; new GenAI runs use the model name directly and omit it.
+API keys and authentication headers are not included in usage events.
+
+Official tau2 artifacts are retained beside the formal trajectory in
+`trajectory_native/` for the first attempt and `attempt_{n}_native/` for retries.
+These directories contain `course_agent_events.jsonl`, `stdout.log`,
+`stderr.log`, and any native benchmark artifacts written before termination.
+The `official_command` event records their absolute paths before launch.
+On timeout/error, the runner stops the owned process group before importing
+available agent events and finalizing usage and results. Requests without a
+matching response get `request_interrupted`; malformed or truncated JSONL lines
+produce explicit parse errors while complete lines remain available. A timeout
+may leave no native verifier verdict. Terminating a local API request does not
+guarantee cancellation or known billing on the provider side.
 
 Assignment configs may include `scoring.baseline_anchors`. These anchors are
 reference-only benchmark-level average scores measured from TA baseline-agent

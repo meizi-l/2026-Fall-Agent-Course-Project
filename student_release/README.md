@@ -13,6 +13,12 @@ Implement `StudentAgent` in `src/course_agent/student_agent.py`. The runner
 calls your agent once per step with the current observation, available tools,
 and limits.
 
+For official tau2 Airline, every request includes the full benchmark rules in
+`request.observation["domain_policy"]`, alongside the current user message or
+tool result. Include these rules in your LLM context and maintain conversation
+state across turns using `context_id`. The runner supplies observations and
+rules; your agent decides how to use them.
+
 The starter template is separated into sections such as
 `##### LOCKED COURSE INTERFACE`, `##### RESPONSE SCHEMA REQUIREMENTS`,
 `##### OPTIONAL COURSE HELPERS`, `##### STUDENT-DESIGNED BENCHMARK LOGIC`, and
@@ -80,12 +86,10 @@ For real LLM-backed runs, copy and edit the local environment file:
 cp env.student.sh.example env.student.local.sh
 ```
 
-At minimum, replace these required values:
+Replace only the API key with a key subscribed to **HKUST GenAI**:
 
 ```bash
 export COURSE_API_KEY=...
-export AZURE_OPENAI_ENDPOINT=...
-export AZURE_OPENAI_API_VERSION=...
 ```
 
 Then source the file before running official public cases:
@@ -95,47 +99,62 @@ source env.student.local.sh
 ```
 
 Do not submit `env.student.local.sh`. Final grading uses staff/course-owned
-credentials injected by grading workers for the school Azure/HKUST endpoint;
+credentials injected by grading workers for HKUST GenAI;
 student-submitted local env files are ignored during final grading. For local
 experiments, configure your own HKUST API key and endpoint according to:
 
 - [HKUST API Developer Portal](https://hkust.developer.azure-api.net/)
-- [HKUST Azure OpenAI API Service](https://itso.hkust.edu.hk/services/it-infrastructure/azure-openai-api-service)
+- [HKUST GenAI API Service](https://itso.hkust.edu.hk/services/it-infrastructure/hkust-genai-api-service)
 
 The starter includes `course_agent.runtime.CourseLLMClient`, a synchronous
-OpenAI SDK wrapper. It reads `COURSE_API_KEY`, `AZURE_OPENAI_ENDPOINT`,
-`AZURE_OPENAI_API_VERSION`, `COURSE_LLM_MODEL`, timeout/token limits, and
-`COURSE_LLM_MAX_ATTEMPTS` from the environment before making chat-completion
-calls. The starter template itself does not implement benchmark strategy or make
+OpenAI SDK wrapper. The environment template supplies
+`OPENAI_BASE_URL=https://hkust.azure-api.net/hkust-genai/v1` and
+`COURSE_LLM_MODEL=gpt-5-mini`; keep these course defaults. The client uses
+`OpenAI` chat completions and sends the required `api-key` header automatically.
+Azure deployment and API-version variables are no longer used. The starter
+template itself does not implement benchmark strategy or make
 LLM calls by default; after you design your agent, real LLM connection failures
 are recorded as runtime/error events.
 
-The template also configures tau2's LLM user simulator:
+Pass `limits=request.limits` to every `self.llm_client.chat(...)` call. The runner
+loads global and benchmark limits from the selected task JSON and sends them in
+each request. These override the client's fallback values: 300 seconds, 64,000
+estimated input tokens, 4,096 output tokens, and two total attempts. SDK retries
+are disabled so they do not multiply the course attempt budget. Output limits
+use `max_completion_tokens` (including reasoning tokens when applicable).
 
-- `TAU2_REPO` points to the tau2-bench checkout.
-- `TAU2_USER_MODEL=azure/gpt-4o-mini` uses the school Azure gateway through
-  LiteLLM's Azure provider form.
-- `TAU2_USER_LLM_ARGS` holds non-secret simulator settings such as temperature
-  and timeout. Do not put API keys in this value because command arguments are
-  recorded in trajectories.
-- `TAU2_MAX_STEPS` and `TAU2_TIMEOUT` bound tau2 simulator runs.
+Tau2's benchmark-side user simulator shares `COURSE_API_KEY` and `OPENAI_BASE_URL`.
+Keep `TAU2_USER_MODEL=openai/gpt-4o-mini`: `openai/` selects LiteLLM's protocol,
+while the base URL directs requests to HKUST. The adapter adds authentication
+at HTTP send time, outside logged simulator arguments. No separate provider
+key is needed. The runner defaults to `user_simulator`, temperature `0.0`, and
+a 300-second simulator LLM timeout. Task JSON controls the overall case timeout
+and `max_environment_steps`; those limits do not need shell exports.
+`TAU2_USER_LLM_ARGS` is an optional non-secret settings override, not a place
+for API keys. The simulator's existing benchmark retry policy is unchanged.
 
 Tau2 official runs check the LLM environment before starting the simulator. If
-`COURSE_API_KEY`, `AZURE_OPENAI_ENDPOINT`, or `AZURE_OPENAI_API_VERSION` is
-missing or still uses the template placeholder, the run records
-`Tau2LLMEnvironmentError`.
+`COURSE_API_KEY` or `OPENAI_BASE_URL` is missing or still uses a placeholder,
+or `TAU2_USER_MODEL` uses the old Azure prefix, the run records
+`Tau2LLMEnvironmentError`. When migrating an existing local env file, update it
+to the new template and source it in a fresh shell. A legacy Azure subscription
+key may not grant GenAI access; the new key must allow both course models.
 
-For benchmark environments, the course-managed defaults are:
+When the course-provided setup scripts install benchmark checkouts under
+`../third_party/`, the runner finds them automatically. No benchmark path
+exports are required.
+
+If you self-manage benchmark checkouts in other locations, set these variables
+to absolute paths:
 
 ```bash
-export TAU2_REPO=../third_party/tau2-bench
-export DEEPPLANNING_REPO=../third_party/qwen-agent
-export MCPMARK_REPO=../third_party/mcpmark
+export TAU2_REPO=/absolute/path/to/tau2-bench
+export DEEPPLANNING_REPO=/absolute/path/to/qwen-agent
+export MCPMARK_REPO=/absolute/path/to/mcpmark
 ```
 
-If you self-manage benchmark checkouts elsewhere, set those variables to
-absolute paths. The checkouts must keep the pinned versions, virtualenv paths,
-data files, and services described in `../third_party/README.md`; do not patch
+Self-managed checkouts must keep the pinned versions, virtualenv paths, data
+files, and services described in `../third_party/README.md`; do not patch
 `public_runner` or `course_agent` to make a local benchmark setup work.
 
 For official public runs, set up benchmark environments from the course root:
@@ -182,7 +201,7 @@ Current public defaults:
 | Limit | Default | Implemented by | Meaning |
 | --- | ---: | --- | --- |
 | `model_input_tokens` | `64000` | `CourseLLMClient` | Rejects an LLM request before the API call if the estimated prompt plus tool schema payload is too large. |
-| `model_output_tokens` | `4096` | `CourseLLMClient` | Sent to the chat-completions API as `max_tokens`. |
+| `model_output_tokens` | `4096` | `CourseLLMClient` | Sent to the chat-completions API as `max_completion_tokens`. |
 | `case_timeout_sec` | `300` | `CourseLLMClient`, official adapters, tau2 subprocess adapter | Per-case wall-clock timeout used for LLM calls and official benchmark subprocesses. Official adapters add a small cleanup buffer internally. |
 | `llm_max_attempts` | `2` | `CourseLLMClient` | Maximum SDK attempts for one logical LLM call. Failed attempts are retried up to this count. |
 | `max_model_calls` | benchmark-specific | `CourseLLMClient`, runner turn loop fallback | Maximum actual LLM SDK attempts in a student-agent process. Retries count as attempts. For benchmarks without `max_agent_turns`, the runner also uses this as the agent turn cap. |
@@ -204,6 +223,12 @@ tokens. These fields are aggregated into `case_results.jsonl`,
 `case_analysis.json`, and `score_summary.json`. Direct API calls that bypass
 `CourseLLMClient` are not guaranteed to be captured. Tau2's benchmark-side user
 simulator LLM is not counted as student-agent LLM usage.
+
+Each SDK attempt has a `call_id` and start/completion events. Interrupted calls
+are included in `llm_api_call_count` and reported as `llm_interrupted_call_count`.
+`llm_usage_complete: false` means some usage is unknown (for example, a request
+interrupted by timeout); reported token totals are only the available usage,
+not a complete billing record.
 
 ## Tool Call Limits
 
@@ -319,9 +344,9 @@ Run deterministic interface tests with the simplified backend:
 uv run --locked run-tasks --backend simplified
 ```
 
-Use `simplified` for quick protocol checks. It does not require official
-benchmark repositories or API credentials and is the fastest way to see whether
-your `StudentAgent` still speaks the course JSONL protocol.
+Use `simplified` for quick local checks. It does not require official benchmark
+repositories or API credentials and is the fastest way to confirm that your
+`StudentAgent` starts, handles requests, and returns valid responses.
 
 Run official public environments after benchmark setup:
 
@@ -331,10 +356,12 @@ uv run --locked run-tasks --backend official
 
 Use `official` when you want benchmark-real tools, scoring, trajectories, and
 failure modes. Official runs require the relevant `third_party` benchmark setup;
-tau2 and the starter LLM baseline also require `env.student.local.sh`.
+tau2 always requires `env.student.local.sh` for its user simulator. MCPMark and
+DeepPlanning also require it when your agent calls the provided LLM client.
 
-`task_configs/public_cases.json` selects public development cases. Staff
-configs follow the same rule: public_cases.json and hidden_cases.json use the same schema.
+`task_configs/public_cases.json` contains 40 public development cases: 16
+MCPMark cases, 12 tau2 Airline cases, and 12 DeepPlanning Shopping cases.
+Staff configs follow the same rule: public_cases.json and hidden_cases.json use the same schema.
 Hidden configs add private case entries but keep the same benchmark names,
 limits, scoring fields, and runner protocol.
 
@@ -408,7 +435,13 @@ Explicit resume uses that batch's original `run_metadata.json`, applies the
 same skip/retry rules, and rewrites `score_summary.json`.
 
 For tau2 official runs, the trajectory also includes subprocess events and a
-sidecar JSONL of StudentAgent request/response/error events. If tau2 fails
+sidecar JSONL of StudentAgent request/response/error events. Native files are
+retained under `trajectory_native/` or `attempt_<n>_native/` beside each attempt's
+trajectory, including `course_agent_events.jsonl` and process stdout/stderr logs.
+Timeouts stop the owned processes before collecting available events and usage;
+unanswered requests are marked `request_interrupted`. A timed-out attempt may
+have no benchmark verdict. See `../shared/trajectory_schema.md` for details.
+If tau2 fails
 before the first agent turn, the trajectory records a tau2 agent event count of
 `0`.
 
@@ -452,6 +485,44 @@ and debugging. Higher worker counts can make LLM/API throttling, container
 contention, and trajectory diagnosis harder to interpret, even though official
 MCPMark cases are serialized by the runner lock.
 
+## Testing Your Setup and Agent
+
+Before modifying `student_agent.py`, run the provided tests from
+`student_release/`:
+
+```bash
+uv run --locked pytest -q -rs
+```
+
+These tests check that the provided course framework and agent template work
+correctly. They do not require API credentials or staff-only files.
+
+A small number of tests also check locally installed benchmark environments.
+If a required benchmark environment is not installed, pytest reports that test
+as `skipped` and prints the reason. This does not fail the test suite, but that
+benchmark environment has not been checked on your machine.
+
+After implementing your agent, run:
+
+```bash
+uv run --locked python smoke_local.py
+```
+
+This checks that your agent starts correctly, handles requests for all three
+benchmarks, and returns responses in the required format. It does not evaluate
+whether your agent can solve the tasks.
+
+Then run selected public cases to evaluate its task behavior, for example:
+
+```bash
+uv run --locked run-tasks --backend official \
+  --case tau2_airline:tau2_49
+```
+
+Official public cases require API credentials and the corresponding benchmark
+environment. See [Experiment Setup](#experiment-setup) and
+`../third_party/README.md` for setup instructions.
+
 ## Submission
 
 Create `submission.json` from `submission.example.json`, then edit it with your
@@ -473,10 +544,10 @@ The required checks are:
 - Dependency policy passes: `uv lock --check`, PyPI-only registry packages,
   no git/url/path dependencies, no source-only packages, no artifact over 50 MB,
   and no estimated dependency download over 300 MB.
-- `smoke_local.py` passes, proving the JSONL agent protocol loads your
-  `StudentAgent`.
-- `public_runner/run_public_tasks.py --backend simplified` passes, proving the
-  runner can complete local interface cases and write trajectories.
+- `smoke_local.py` passes, confirming that your `StudentAgent` starts, handles
+  requests, and returns responses in the required format.
+- Local test tasks pass and produce trajectory files through the provided
+  runner.
 
 Generated trajectories, caches, local env files, internal baseline code, and
 archives are excluded from submissions. Model weights, databases, nested

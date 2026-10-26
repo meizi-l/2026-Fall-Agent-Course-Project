@@ -11,14 +11,16 @@ course provides the runner, benchmark adapters, fixed agent interface, logging,
 trajectory format, public development cases, and grading infrastructure.
 Students are responsible for the behavior and internal design of their agent.
 
+The project root is the directory containing `student_release/`, `shared/`,
+and `third_party/`, regardless of the cloned repository's folder name.
 This repository is organized as follows:
 
-- `student_release/`: student-facing starter package, local smoke tests, public
+- `student_release/`: student-facing package, local smoke tests, public
   runner, submission builder, and public task configs.
 - `shared/`: schemas and policy documents shared by student and staff tooling.
 - `third_party/`: setup scripts for official public benchmark environments.
-- `staff_side/`: staff and grading-server tooling. Hidden cases and private
-  verifier material are not part of the public release.
+- `staff_side/`: a placeholder in the public repository. Staff tooling, hidden
+  cases, and private verifier material remain in the separate private repository.
 
 ## Benchmarks
 
@@ -131,14 +133,14 @@ Students must keep the public `StudentAgent` interface expected by the course
 runner: the class name, `respond`, `llm_client`, and the benchmark solver method
 signatures documented in `student_release/README.md`.
 
-Students do not have to keep the starter strategy or internal implementation.
-They may replace solver bodies, add internal state, write helper functions or
-classes, add helper modules under
+Students do not have to keep the provided template's placeholder responses or
+internal implementation. They may replace solver bodies, add internal state,
+write helper functions or classes, add helper modules under
 `student_release/src/course_agent/student_tools/`, and use an agentic framework
 that complies with the dependency and execution policies below.
 
 During grading, the only student-agent LLM model allowed is `gpt-5-mini`,
-accessed through the provided course/HKUST Azure configuration. Students must
+accessed through the provided HKUST GenAI configuration. Students must
 not rely on other model providers, private APIs, local model servers, GPUs,
 large downloaded model weights, or external services. Benchmark-side
 simulators may use separate course-controlled models; those calls are part of
@@ -159,6 +161,8 @@ checkouts where practical, and locked runner and protocol interfaces so
 students can develop on different laptops while staff grading remains as fair
 and reproducible as practical. Exact host-level reproducibility is not
 guaranteed because container runtimes and system packages remain self-managed.
+
+The current release has been tested on a macOS MacBook.
 
 Final grading is expected on a staff-controlled server with this baseline:
 
@@ -183,10 +187,13 @@ Local readiness has two separate layers:
    environment variables, and runtime checks.
 2. **Student-side readiness.** Follow `student_release/README.md`: configure
    `env.student.local.sh` for LLM-backed runs, run `smoke_local.py` to verify
-   that `StudentAgent` loads and follows the locked course JSONL interface, and
-   run `public_runner/run_public_tasks.py` to exercise the public task runner.
+   that `StudentAgent` starts, handles requests, and returns valid responses,
+   then use `uv run --locked run-tasks` to run selected public cases.
 
-Official public runs expect benchmark paths compatible with:
+When the course-provided setup scripts install the benchmarks under
+`third_party/`, the runner finds them automatically. No benchmark path exports
+are required. Set the following variables only when using self-managed
+checkouts in other locations:
 
 ```bash
 export TAU2_REPO=/absolute/path/to/tau2-bench
@@ -194,15 +201,16 @@ export DEEPPLANNING_REPO=/absolute/path/to/qwen-agent
 export MCPMARK_REPO=/absolute/path/to/mcpmark
 ```
 
-For LLM-backed local runs, students configure their own HKUST API key and
-endpoint in `env.student.local.sh`. Final grading uses staff/course-owned
-credentials injected by grading workers for the school Azure/HKUST endpoint;
+For LLM-backed local runs, students put their HKUST GenAI subscription key in
+`COURSE_API_KEY` in `env.student.local.sh`. The template supplies the service
+base URL and course models; see `student_release/README.md` for setup.
+Final grading uses staff/course-owned credentials for the same HKUST GenAI service;
 student-submitted local env files are ignored during final grading.
 
 Useful references:
 
 - [HKUST API Developer Portal](https://hkust.developer.azure-api.net/)
-- [HKUST Azure OpenAI API Service](https://itso.hkust.edu.hk/services/it-infrastructure/azure-openai-api-service)
+- [HKUST GenAI API Service](https://itso.hkust.edu.hk/services/it-infrastructure/hkust-genai-api-service)
 
 ## Locked And Editable Files
 
@@ -233,7 +241,7 @@ student ID, name, and email, and build `submission.zip` with the provided
 submission tool:
 
 ```bash
-cd course_project/student_release
+cd student_release
 cp submission.example.json submission.json
 # Edit student_id, student_name, and email.
 uv run --locked python build_submission.py --output submission.zip
@@ -243,10 +251,10 @@ Before packaging, the submission builder checks that:
 
 - `submission.json` is valid and contains non-placeholder student information.
 - `pyproject.toml` and `uv.lock` satisfy the course dependency policy.
-- `smoke_local.py` passes, proving that the JSONL agent process can load the
-  submitted `StudentAgent` and follow the locked interface.
-- The simplified public runner passes, proving that the agent can complete
-  local interface cases and write trajectories.
+- `smoke_local.py` passes, confirming that the submitted `StudentAgent` starts,
+  handles requests, and returns responses in the required format.
+- Local test tasks pass and produce trajectory files through the provided
+  runner.
 
 Generated trajectories, caches, local env files, API keys, internal baseline
 code, model weights, databases, nested archives, and hidden or private files

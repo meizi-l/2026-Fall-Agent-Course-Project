@@ -7,11 +7,11 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from typing import Any
+from typing import Any, Callable
 
 from public_runner.envs.base import BackendCaseResult, CaseScore, TaskEnvironment
 from public_runner.envs.mcpmark_case_config import MCPMARK_ALLOWED_SERVICES, mcpmark_case_service, validate_mcpmark_task_files
-from public_runner.jsonl_ipc import JSONLProcess
+from public_runner.jsonl_ipc import JSONLProcess, stop_process
 
 
 MCPMARK_FILESYSTEM_SERVER_PACKAGE = "@modelcontextprotocol/server-filesystem@2025.12.18"
@@ -27,7 +27,7 @@ def _student_release_root() -> Path:
 
 
 def _course_project_root() -> Path:
-    return _repo_root() / "course_project"
+    return _student_release_root().parent
 
 
 class OfficialUnavailableEnvironment(TaskEnvironment):
@@ -151,8 +151,50 @@ class OfficialMCPMarkEnvironment(TaskEnvironment):
 class OfficialTau2AirlineEnvironment(OfficialUnavailableEnvironment):
     def __init__(self, case: dict[str, Any], setup_report: dict[str, Any] | None = None) -> None:
         super().__init__("tau2_airline", case, setup_report or _tau2_setup_report())
+        self._artifact_dir: Path | None = None
+        self._event_sink: Callable[[dict[str, Any]], None] | None = None
+        self._process: subprocess.Popen | None = None
+
+    def configure_execution(self, *, artifact_dir: Path | None = None, event_sink: Callable | None = None) -> None:
+        if artifact_dir is not None:
+            self._artifact_dir = artifact_dir.resolve()
+        if event_sink is not None:
+            self._event_sink = event_sink
+
+    def _flush_events(self) -> None:
+        if self._event_sink is not None:
+            while self._emitted_count < len(self._events):
+                self._event_sink(self._events[self._emitted_count])
+                self._emitted_count += 1
+
+    def _collect_agent_events(self) -> None:
+        if self._agent_event_path is not None and not self._agent_events_collected:
+            self._events.extend(_load_tau2_agent_events(self._agent_event_path))
+            self._agent_events_collected = True
+
+    def close(self) -> None:
+        if self._process is not None:
+            stop_process(self._process)
+            self._process = None
 
     def run(self) -> BackendCaseResult:
+        self._events: list[dict[str, Any]] = []
+        self._emitted_count = 0
+        self._agent_event_path: Path | None = None
+        self._agent_events_collected = False
+        try:
+            result = self._run()
+            if result.events is not self._events:
+                self._events.extend(result.events)
+            return result
+        finally:
+            try:
+                self.close()
+            finally:
+                self._collect_agent_events()
+                self._flush_events()
+
+    def _run(self) -> BackendCaseResult:
         report = _tau2_setup_report()
         if report["missing"]:
             self.setup_report = report
@@ -177,10 +219,13 @@ class OfficialTau2AirlineEnvironment(OfficialUnavailableEnvironment):
             )
 
         tau_repo = Path(report["tau2_repo"])
-        output_root = Path(tempfile.mkdtemp(prefix=f"course_tau2_{self.case_id}_"))
+        output_root = self._artifact_dir or Path(tempfile.mkdtemp(prefix=f"course_tau2_{self.case_id}_"))
+        output_root.mkdir(parents=True, exist_ok=True)
         agent_event_path = output_root / "course_agent_events.jsonl"
+        self._agent_event_path = agent_event_path
         command = _tau2_command(tau_repo, self.case_id, output_root, self.limits)
-        events: list[dict[str, Any]] = [
+        events = self._events
+        events.extend([
             {
                 "event": "official_command",
                 "benchmark": self.benchmark,
@@ -190,32 +235,30 @@ class OfficialTau2AirlineEnvironment(OfficialUnavailableEnvironment):
                 "output_dir": str(output_root),
                 "agent_trajectory_path": str(agent_event_path),
             }
-        ]
+        ])
+        self._flush_events()
         env = _tau2_subprocess_env(self.case_id)
         env["COURSE_TAU2_AGENT_TRAJECTORY"] = str(agent_event_path)
-        completed = subprocess.run(
-            command,
-            cwd=tau_repo,
-            env=env,
-            text=True,
-            capture_output=True,
-            timeout=_limit_int(self.limits, "case_timeout_sec", int(os.getenv("TAU2_TIMEOUT", "300"))) + 30,
-        )
-        events.append(
-            {
-                "event": "official_process",
-                "returncode": completed.returncode,
-                "stdout_tail": completed.stdout[-4000:],
-                "stderr_tail": completed.stderr[-4000:],
-            }
-        )
-        events.extend(_load_tau2_agent_events(agent_event_path))
-        if completed.returncode != 0:
+        env["COURSE_TAU2_OWNED_PROCESS_GROUP"] = "1"
+        stdout_path, stderr_path = output_root / "stdout.log", output_root / "stderr.log"
+        with stdout_path.open("w", encoding="utf-8") as stdout, stderr_path.open("w", encoding="utf-8") as stderr:
+            process = subprocess.Popen(command, cwd=tau_repo, env=env, stdout=stdout, stderr=stderr, start_new_session=True)
+            self._process = process
+            try:
+                process.wait(timeout=_limit_int(self.limits, "case_timeout_sec", int(os.getenv("TAU2_TIMEOUT", "300"))) + 30)
+            finally:
+                self.close()
+                events.append({
+                    "event": "official_process", "returncode": process.returncode,
+                    "stdout_tail": _read_log_tail(stdout_path), "stderr_tail": _read_log_tail(stderr_path),
+                })
+        self._collect_agent_events()
+        if process.returncode != 0:
             events.append(
                 {
                     "event": "error",
                     "error_type": "OfficialTau2ProcessError",
-                    "message": f"tau2-bench exited with code {completed.returncode}",
+                    "message": f"tau2-bench exited with code {process.returncode}",
                 }
             )
             return BackendCaseResult(
@@ -357,17 +400,16 @@ class OfficialPublicBackend:
     def setup_report(self) -> dict[str, Any]:
         root = _repo_root()
         course_root = _course_project_root()
-        mcpmark_repo = _default_mcpmark_repo(root)
+        mcpmark_repo = _default_mcpmark_repo(course_root)
         checks = {
             "course_project": course_root,
             "third_party": course_root / "third_party",
             "student_release": course_root / "student_release",
-            "staff_side": course_root / "staff_side",
-            "tau2_repo": _default_tau2_repo(root),
+            "tau2_repo": _default_tau2_repo(course_root),
             "mcpmark_repo": mcpmark_repo,
             "mcpmark_python": mcpmark_repo / ".venv-mcpmark" / "bin" / "python",
             "mcpmark_pipeline": mcpmark_repo / "pipeline.py",
-            "deepplanning_repo": _default_deepplanning_repo(root),
+            "deepplanning_repo": _default_deepplanning_repo(course_root),
         }
         found = {name: path.exists() for name, path in checks.items()}
         missing = [name for name, exists in found.items() if not exists]
@@ -520,25 +562,25 @@ class _DeepPlanningAdapterClient:
         return self._proc
 
 
-def _default_tau2_repo(root: Path) -> Path:
+def _default_tau2_repo(course_root: Path) -> Path:
     configured = os.getenv("TAU2_REPO")
     if configured:
         return Path(configured).expanduser().resolve()
-    return root / "course_project" / "third_party" / "tau2-bench"
+    return course_root / "third_party" / "tau2-bench"
 
 
-def _default_deepplanning_repo(root: Path) -> Path:
+def _default_deepplanning_repo(course_root: Path) -> Path:
     configured = os.getenv("DEEPPLANNING_REPO")
     if configured:
         return Path(configured).expanduser().resolve()
-    return root / "course_project" / "third_party" / "qwen-agent"
+    return course_root / "third_party" / "qwen-agent"
 
 
-def _default_mcpmark_repo(root: Path) -> Path:
+def _default_mcpmark_repo(course_root: Path) -> Path:
     configured = os.getenv("MCPMARK_REPO")
     if configured:
         return Path(configured).expanduser().resolve()
-    return root / "course_project" / "third_party" / "mcpmark"
+    return course_root / "third_party" / "mcpmark"
 
 
 def _mcpmark_case_service(case: dict[str, Any]) -> str:
@@ -553,7 +595,7 @@ def _mcpmark_case_service(case: dict[str, Any]) -> str:
 
 def _tau2_setup_report() -> dict[str, Any]:
     root = _repo_root()
-    tau_repo = _default_tau2_repo(root)
+    tau_repo = _default_tau2_repo(_course_project_root())
     python = tau_repo / ".venv" / "bin" / "python"
     entry = Path(__file__).with_name("tau2_jsonl_entry.py")
     checks = {
@@ -583,7 +625,7 @@ def _tau2_setup_report() -> dict[str, Any]:
 
 def _deepplanning_setup_report() -> dict[str, Any]:
     root = _repo_root()
-    qwen_repo = _default_deepplanning_repo(root)
+    qwen_repo = _default_deepplanning_repo(_course_project_root())
     python = qwen_repo / ".venv-deepplanning" / "bin" / "python"
     benchmark_root = qwen_repo / "benchmark" / "deepplanning" / "shoppingplanning"
     checks = {
@@ -624,7 +666,7 @@ def _deepplanning_setup_report() -> dict[str, Any]:
 def _mcpmark_setup_report() -> dict[str, Any]:
     root = _repo_root()
     course_root = _course_project_root()
-    mcpmark_repo = _default_mcpmark_repo(root)
+    mcpmark_repo = _default_mcpmark_repo(course_root)
     python = mcpmark_repo / ".venv-mcpmark" / "bin" / "python"
     entry = Path(__file__).with_name("mcpmark_jsonl_entry.py")
     local_node_bin = course_root / "third_party" / ".local" / "node20" / "bin"
@@ -844,7 +886,7 @@ def _tau2_command(tau_repo: Path, case_id: str, output_root: Path, limits: dict[
         "--user",
         os.getenv("TAU2_USER", "user_simulator"),
         "--user-llm",
-        os.getenv("TAU2_USER_MODEL", "azure/gpt-4o-mini"),
+        os.getenv("TAU2_USER_MODEL", "openai/gpt-4o-mini"),
         "--user-llm-args",
         json.dumps(user_llm_args, sort_keys=True),
         "--max-steps",
@@ -879,27 +921,31 @@ def _tau2_subprocess_env(case_id: str) -> dict[str, str]:
     env["TAU2_CURRENT_TASK_ID"] = case_id
     course_key = os.getenv("COURSE_API_KEY")
     if course_key:
-        env["AZURE_OPENAI_API_KEY"] = course_key
         env["OPENAI_API_KEY"] = course_key
-        env["AZURE_API_KEY"] = course_key
-    azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-    if azure_endpoint:
-        env["AZURE_API_BASE"] = azure_endpoint
-    azure_api_version = os.getenv("AZURE_OPENAI_API_VERSION")
-    if azure_api_version:
-        env["AZURE_API_VERSION"] = azure_api_version
+    for name in (
+        "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_API_VERSION", "AZURE_OPENAI_DEPLOYMENT",
+        "AZURE_OPENAI_API_KEY", "AZURE_API_KEY", "AZURE_API_BASE", "AZURE_API_VERSION",
+    ):
+        env.pop(name, None)
     return env
+
+
+def _read_log_tail(path: Path) -> str:
+    with path.open("rb") as handle:
+        handle.seek(0, os.SEEK_END)
+        handle.seek(max(0, handle.tell() - 16000))
+        return handle.read().decode("utf-8", errors="replace")[-4000:]
 
 
 def _load_tau2_agent_events(path: Path) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
     if path.exists():
-        for line in path.read_text(encoding="utf-8").splitlines():
+        for line in path.read_bytes().splitlines():
             if not line.strip():
                 continue
             try:
                 event = json.loads(line)
-            except json.JSONDecodeError as exc:
+            except (json.JSONDecodeError, UnicodeDecodeError) as exc:
                 events.append(
                     {
                         "event": "error",
@@ -911,11 +957,24 @@ def _load_tau2_agent_events(path: Path) -> list[dict[str, Any]]:
                 continue
             if isinstance(event, dict):
                 events.append(event)
+    pending: dict[str, None] = {}
+    for event in events:
+        if event.get("event") == "request":
+            request = event.get("request")
+            request_id = request.get("request_id") if isinstance(request, dict) else None
+            if request_id:
+                pending[request_id] = None
+        elif event.get("event") == "response":
+            response = event.get("response")
+            request_id = event.get("request_id") or (response.get("request_id") if isinstance(response, dict) else None)
+            pending.pop(request_id, None)
+    agent_event_count = len(events)
+    events.extend({"event": "request_interrupted", "request_id": request_id, "reason": "attempt_ended_without_response"} for request_id in pending)
     return [
         {
             "event": "tau2_agent_trajectory",
             "path": str(path),
-            "agent_event_count": len(events),
+            "agent_event_count": agent_event_count,
         },
         *events,
     ]
@@ -926,8 +985,7 @@ def _tau2_llm_env_error() -> str:
     placeholders: list[str] = []
     required = {
         "COURSE_API_KEY": os.getenv("COURSE_API_KEY"),
-        "AZURE_OPENAI_ENDPOINT": os.getenv("AZURE_OPENAI_ENDPOINT"),
-        "AZURE_OPENAI_API_VERSION": os.getenv("AZURE_OPENAI_API_VERSION"),
+        "OPENAI_BASE_URL": os.getenv("OPENAI_BASE_URL"),
     }
     for name, value in required.items():
         if not value:
@@ -935,6 +993,11 @@ def _tau2_llm_env_error() -> str:
         elif _looks_like_placeholder(value):
             placeholders.append(name)
     if not missing and not placeholders:
+        if not os.getenv("TAU2_USER_MODEL", "openai/gpt-4o-mini").startswith("openai/"):
+            return (
+                "HKUST GenAI requires TAU2_USER_MODEL in LiteLLM's openai/ form "
+                "(openai/gpt-4o-mini). Update and source env.student.local.sh."
+            )
         return ""
     parts = []
     if missing:
@@ -945,7 +1008,7 @@ def _tau2_llm_env_error() -> str:
     return (
         f"tau2 official runs require LLM configuration from env.student.local.sh: {details}. "
         "Copy env.student.sh.example to env.student.local.sh, fill COURSE_API_KEY, "
-        "AZURE_OPENAI_ENDPOINT, and AZURE_OPENAI_API_VERSION, then source env.student.local.sh."
+        "keep the provided OPENAI_BASE_URL, then source env.student.local.sh."
     )
 
 

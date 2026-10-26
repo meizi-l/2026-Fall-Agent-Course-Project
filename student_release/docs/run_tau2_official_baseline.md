@@ -1,7 +1,8 @@
-# Run tau2 Official Baseline
+# Run tau2 Official Tasks
 
-This guide runs the student baseline agent against the real public tau2 airline
-environment through the course public runner.
+This guide runs your implemented StudentAgent against the real public tau2
+airline environment through the course public runner. The starter template
+returns placeholders; it does not provide a benchmark-solving baseline.
 
 ## 1. Install Student Dependencies
 
@@ -22,12 +23,10 @@ cp env.student.sh.example env.student.local.sh
 Edit `env.student.local.sh`:
 
 ```bash
-export COURSE_API_KEY="your-key"
-export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com"
-export AZURE_OPENAI_API_VERSION="2025-02-01-preview"
+export COURSE_API_KEY="your-hkust-genai-key"
+export OPENAI_BASE_URL="https://hkust.azure-api.net/hkust-genai/v1"
 export COURSE_LLM_MODEL="gpt-5-mini"
-export AZURE_OPENAI_DEPLOYMENT="gpt-5-mini"
-export TAU2_USER_MODEL="azure/gpt-4o-mini"
+export TAU2_USER_MODEL="openai/gpt-4o-mini"
 ```
 
 Then source it:
@@ -36,12 +35,13 @@ Then source it:
 source env.student.local.sh
 ```
 
-The baseline uses the same `COURSE_API_KEY` for the student agent and the tau2
+Local runs use the same `COURSE_API_KEY` for the student agent and the tau2
 user simulator, but different models.
 
-`TAU2_USER_MODEL` uses LiteLLM's Azure provider prefix. If you set it to
-`openai/gpt-4o-mini`, tau2 will call the public OpenAI API and will reject a
-school Azure gateway key.
+Only the API key needs replacing in the provided template. Use a key subscribed
+to HKUST GenAI with access to both models. `openai/` selects LiteLLM's
+OpenAI-compatible protocol; `OPENAI_BASE_URL` directs it to HKUST. Course code
+adds the required `api-key` header without putting it in logged LLM arguments.
 
 ## 3. Install tau2-bench
 
@@ -95,12 +95,11 @@ official result, score, and any setup/runtime errors.
 ## Common Issues
 
 - `The OpenAI SDK is not installed`: run `uv sync --locked`.
-- `Tau2LLMEnvironmentError`: `COURSE_API_KEY`, `AZURE_OPENAI_ENDPOINT`, or
-  `AZURE_OPENAI_API_VERSION` is missing or still set to the template
+- `Tau2LLMEnvironmentError`: `COURSE_API_KEY` or `OPENAI_BASE_URL` is missing,
+  or the key is still set to the template
   placeholder; edit and source `env.student.local.sh`.
 - `tau2-bench is not configured`: run `bash third_party/setup_tau2_bench.sh`
   from `course_project`.
-- `Incorrect API key provided`: confirm `TAU2_USER_MODEL=azure/gpt-4o-mini`
-  when using the school Azure gateway.
-- `OpenAIException - Connection error`: check endpoint, API version, deployment,
-  API key, and school network access.
+- Authentication/model errors: confirm the HKUST GenAI subscription and model
+  access. Keep `TAU2_USER_MODEL=openai/gpt-4o-mini` and the provided base URL.
+- `OpenAIException - Connection error`: check the base URL and network access.

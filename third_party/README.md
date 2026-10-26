@@ -3,6 +3,9 @@
 This directory contains setup scripts for official public benchmark
 environments. Downloaded checkouts and data are local only and are not committed.
 
+In this guide, `course_project` means the project root containing
+`student_release/` and `third_party/`; your cloned folder may have another name.
+
 The setup scripts below are the scripts we use to configure the benchmark
 environment during course development. They have been tested on a macOS MacBook.
 Final staff grading is expected on the staff server environment. Students on
@@ -98,7 +101,8 @@ These commands are the final benchmark-environment checks before running
 official public cases. They do not validate student LLM credentials, the student
 agent implementation, or trajectory writing. For full local readiness, follow
 `student_release/README.md`: source `env.student.local.sh`, run
-`smoke_local.py`, then run `public_runner/run_public_tasks.py`.
+`uv run --locked python smoke_local.py`, then use
+`uv run --locked run-tasks` for selected public cases.
 
 ```bash
 bash third_party/setup_tau2_bench.sh --check-only
@@ -148,7 +152,7 @@ same `student_release/public_runner` interface used by staff.
 Install or repair:
 
 ```bash
-cd course_project
+# Start in the project root.
 bash third_party/setup_tau2_bench.sh
 ```
 
@@ -181,7 +185,7 @@ check, and `tau2 check-data`.
 Install or repair:
 
 ```bash
-cd course_project
+# Start in the project root.
 bash third_party/setup_deepplanning.sh
 ```
 

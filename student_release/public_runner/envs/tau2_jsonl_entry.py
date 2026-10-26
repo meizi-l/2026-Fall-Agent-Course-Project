@@ -36,6 +36,35 @@ RESPOND_TOOL_NAME = "respond_to_user"
 STUDENT_AGENT_NAME = "student_jsonl_agent"
 
 
+def _configure_user_llm_transport() -> None:
+    """Authenticate at HTTP send time, outside tau2's logged LLM arguments."""
+    import httpx
+    from tau2.utils import llm_utils
+
+    base_url = os.environ["OPENAI_BASE_URL"].strip().rstrip("/")
+    api_key = os.environ["COURSE_API_KEY"]
+    endpoint = httpx.URL(base_url)
+    litellm = llm_utils.litellm
+    litellm.api_base = base_url
+    litellm.api_key = api_key
+
+    def authenticate(request: httpx.Request) -> None:
+        url = request.url
+        if (
+            (url.scheme, url.host, url.port) != (endpoint.scheme, endpoint.host, endpoint.port)
+            or not url.path.startswith(endpoint.path.rstrip("/") + "/")
+        ):
+            raise RuntimeError("tau2 LLM request outside configured OPENAI_BASE_URL")
+        request.headers["api-key"] = api_key
+
+    async def authenticate_async(request: httpx.Request) -> None:
+        authenticate(request)
+
+    # The pinned tau2 module supplies both clients; keep its pools and timeouts.
+    litellm.client_session.event_hooks["request"].append(authenticate)
+    litellm.aclient_session.event_hooks["request"].append(authenticate_async)
+
+
 class JSONLAgentState(BaseModel):
     context_id: str | None = None
     step: int = 0
@@ -49,6 +78,7 @@ class StudentProcessClient:
         self._proc = JSONLProcess(
             command,
             cwd=student_root, timeout=timeout, env=env,
+            start_new_session=os.getenv("COURSE_TAU2_OWNED_PROCESS_GROUP") != "1",
         )
 
     def send(self, request: dict[str, Any]) -> dict[str, Any]:
@@ -95,6 +125,8 @@ class StudentJSONLAgent(HalfDuplexAgent[JSONLAgentState]):
         if max_agent_turns and state.step >= max_agent_turns:
             raise RuntimeError(f"student agent exceeded {max_agent_turns} turns")
         request_id = uuid.uuid4().hex
+        observation = _message_observation(message, state.tool_names)
+        observation["domain_policy"] = self.domain_policy
         request = {
             "request_id": request_id,
             "context_id": state.context_id or uuid.uuid4().hex,
@@ -102,7 +134,7 @@ class StudentJSONLAgent(HalfDuplexAgent[JSONLAgentState]):
             "case_id": _case_id_from_message(message),
             "step": state.step,
             "text": _message_text(message, state.tool_names),
-            "observation": _message_observation(message, state.tool_names),
+            "observation": observation,
             "tools": _tool_schemas(self.tools),
             "limits": self.limits,
         }
@@ -329,4 +361,5 @@ registry.register_agent_factory(create_student_jsonl_agent, STUDENT_AGENT_NAME)
 if __name__ == "__main__":
     from tau2.cli import main
 
+    _configure_user_llm_transport()
     main()

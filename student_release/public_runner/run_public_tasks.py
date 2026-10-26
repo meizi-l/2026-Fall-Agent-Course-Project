@@ -236,12 +236,12 @@ def _load_llm_usage_events(path: Path) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
     if not path.exists():
         return events
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in path.read_bytes().splitlines():
         if not line.strip():
             continue
         try:
             event = json.loads(line)
-        except json.JSONDecodeError as exc:
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
             events.append(
                 {
                     "event": "error",
@@ -266,7 +266,7 @@ def _int_usage_value(value: Any) -> int:
     return parsed if parsed > 0 else 0
 
 
-def _llm_usage_summary(events: list[dict[str, Any]]) -> dict[str, int]:
+def _llm_usage_summary(events: list[dict[str, Any]]) -> dict[str, Any]:
     summary = {
         "llm_api_call_count": 0,
         "llm_successful_call_count": 0,
@@ -276,6 +276,8 @@ def _llm_usage_summary(events: list[dict[str, Any]]) -> dict[str, int]:
         "llm_total_tokens": 0,
         "llm_estimated_input_tokens": 0,
     }
+    started = {event["call_id"] for event in events if event.get("event") == "llm_call_started" and event.get("call_id")}
+    finished = {event["call_id"] for event in events if event.get("event") == "llm_call" and event.get("call_id")}
     for event in events:
         if event.get("event") != "llm_call":
             continue
@@ -291,10 +293,23 @@ def _llm_usage_summary(events: list[dict[str, Any]]) -> dict[str, int]:
             summary["llm_prompt_tokens"] += _int_usage_value(usage.get("prompt_tokens"))
             summary["llm_completion_tokens"] += _int_usage_value(usage.get("completion_tokens"))
             summary["llm_total_tokens"] += _int_usage_value(usage.get("total_tokens"))
+    interrupted = len(started - finished)
+    summary["llm_estimated_input_tokens"] += sum(
+        _int_usage_value(event.get("estimated_input_tokens")) for event in events
+        if event.get("event") == "llm_call_started" and event.get("call_id") in started - finished
+    )
+    summary["llm_api_call_count"] += interrupted
+    summary["llm_interrupted_call_count"] = interrupted
+    summary["llm_usage_complete"] = not interrupted and all(
+        event.get("event") != "error" and (
+            event.get("event") != "llm_call" or
+            isinstance(event.get("usage"), dict) and "total_tokens" in event["usage"]
+        ) for event in events
+    )
     return summary
 
 
-def _sum_llm_usage(results: list[dict[str, Any]]) -> dict[str, int]:
+def _sum_llm_usage(results: list[dict[str, Any]]) -> dict[str, Any]:
     keys = (
         "llm_api_call_count",
         "llm_successful_call_count",
@@ -303,8 +318,12 @@ def _sum_llm_usage(results: list[dict[str, Any]]) -> dict[str, int]:
         "llm_completion_tokens",
         "llm_total_tokens",
         "llm_estimated_input_tokens",
+        "llm_interrupted_call_count",
     )
-    return {key: sum(_int_usage_value(result.get(key)) for result in results) for key in keys}
+    return {
+        **{key: sum(_int_usage_value(result.get(key)) for result in results) for key in keys},
+        "llm_usage_complete": all(result.get("llm_usage_complete", True) for result in results),
+    }
 
 
 def _status_issue_category(status: str) -> str:
@@ -374,6 +393,8 @@ def _case_analysis_entry(run_dir: Path, result: dict[str, Any]) -> dict[str, Any
         "llm_completion_tokens": result.get("llm_completion_tokens", 0),
         "llm_total_tokens": result.get("llm_total_tokens", 0),
         "llm_estimated_input_tokens": result.get("llm_estimated_input_tokens", 0),
+        "llm_interrupted_call_count": result.get("llm_interrupted_call_count", 0),
+        "llm_usage_complete": result.get("llm_usage_complete", True),
     }
     if "previous_status" in result:
         entry["previous_status"] = result["previous_status"]
@@ -590,6 +611,9 @@ def _run_environment_case(
     if hasattr(env, "run"):
         runner = getattr(env, "run")
         if callable(runner):
+            configure_execution = getattr(env, "configure_execution", None)
+            if callable(configure_execution):
+                configure_execution(event_sink=emit)
             try:
                 result = runner()
             finally:
@@ -597,8 +621,9 @@ def _run_environment_case(
                     env.close()
                 finally:
                     os.chdir(original_cwd)
-            for event in result.events:
-                emit(event)
+            if not callable(configure_execution):
+                for event in result.events:
+                    emit(event)
             return BackendCaseResult(
                 status=result.status,
                 reward=result.reward,
@@ -783,6 +808,9 @@ def _run_case_attempt(
             with _case_attempt_resource_lock(backend_name=backend_name, benchmark=benchmark, run_dir=run_path):
                 with _case_deadline(_positive_int(_case_limits(assignment, benchmark).get("case_timeout_sec"), 300)):
                     env = backend.create_environment(benchmark, case)
+                    configure_execution = getattr(env, "configure_execution", None)
+                    if callable(configure_execution):
+                        configure_execution(artifact_dir=trajectory_path.with_name(f"{trajectory_path.stem}_native"))
                     backend_result = _run_environment_case(env, assignment, run_id, record_event)
     except Exception as exc:
         error_event = {"event": "error", "error_type": type(exc).__name__, "message": str(exc)}
@@ -792,6 +820,10 @@ def _run_case_attempt(
     for event in llm_usage_events:
         record_event(event)
     llm_usage_summary = _llm_usage_summary(llm_usage_events)
+    finished_calls = {event.get("call_id") for event in llm_usage_events if event.get("event") == "llm_call"}
+    for event in llm_usage_events:
+        if event.get("event") == "llm_call_started" and event.get("call_id") not in finished_calls:
+            record_event({"event": "llm_call_interrupted", "call_id": event["call_id"], "reason": "attempt_ended_without_usage"})
 
     result = {
         "run_id": run_id,

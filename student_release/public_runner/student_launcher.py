@@ -11,8 +11,7 @@ STUDENT_ENV_KEYS = frozenset({
     "PATH", "LANG", "LC_ALL", "TZ", "PYTHONUNBUFFERED", "COURSE_LLM_USAGE_PATH",
     "COURSE_LLM_MODEL", "COURSE_LLM_TIMEOUT_SEC", "COURSE_LLM_MAX_INPUT_TOKENS",
     "COURSE_LLM_MAX_OUTPUT_TOKENS", "COURSE_LLM_MAX_ATTEMPTS",
-    "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_API_VERSION", "AZURE_OPENAI_DEPLOYMENT",
-    "OPENAI_BASE_URL", "AZURE_API_BASE", "AZURE_API_VERSION",
+    "OPENAI_BASE_URL",
 })
 
 
@@ -22,7 +21,7 @@ def student_launcher_env(student_root: Path) -> dict[str, str]:
         raise RuntimeError("COURSE_STUDENT_API_KEY is required for isolated student execution")
     env = {key: value for key in STUDENT_ENV_KEYS if (value := os.environ.get(key)) is not None}
     env["PYTHONPATH"] = str(student_root / "src")
-    for key in ("COURSE_API_KEY", "AZURE_OPENAI_API_KEY", "OPENAI_API_KEY", "AZURE_API_KEY"):
+    for key in ("COURSE_API_KEY", "OPENAI_API_KEY"):
         env[key] = token
     return env
 

@@ -4,10 +4,63 @@ import importlib.util
 import json
 from pathlib import Path
 import sys
+import textwrap
 import types
+
+import httpx
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_tau2_genai_auth_is_transport_only_and_endpoint_scoped(monkeypatch):
+    import asyncio
+
+    module, _ = _load_tau2_entry_with_stubs(monkeypatch)
+    monkeypatch.setenv("COURSE_API_KEY", "test-simulator-secret")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://hkust.azure-api.net/hkust-genai/v1")
+    seen = []
+
+    def handle(request):
+        seen.append(request)
+        return httpx.Response(200, json={})
+
+    client = httpx.Client(transport=httpx.MockTransport(handle))
+    aclient = httpx.AsyncClient(transport=httpx.MockTransport(handle))
+    llm_utils = _module("tau2.utils.llm_utils")
+    llm_utils.litellm = types.SimpleNamespace(client_session=client, aclient_session=aclient)
+    utils = _module("tau2.utils")
+    utils.llm_utils = llm_utils
+    monkeypatch.setitem(sys.modules, "tau2.utils", utils)
+    monkeypatch.setitem(sys.modules, "tau2.utils.llm_utils", llm_utils)
+
+    module._configure_user_llm_transport()
+    assert llm_utils.litellm.api_base == "https://hkust.azure-api.net/hkust-genai/v1"
+    assert llm_utils.litellm.api_key == "test-simulator-secret"
+    payload = {"model": "gpt-4o-mini", "messages": [{"role": "user", "content": "hello"}]}
+    url = "https://hkust.azure-api.net/hkust-genai/v1/chat/completions"
+    try:
+        client.post(url, json=payload)
+        for wrong_url in ("https://api.openai.com/v1/chat/completions",
+                          "https://hkust.azure-api.net/other/chat/completions"):
+            with pytest.raises(RuntimeError, match="OPENAI_BASE_URL"):
+                client.post(wrong_url, json=payload)
+
+        async def call_async():
+            try:
+                await aclient.post(url, json=payload)
+            finally:
+                await aclient.aclose()
+
+        asyncio.run(call_async())
+        assert len(seen) == 2
+        for request in seen:
+            assert request.headers["api-key"] == "test-simulator-secret"
+            assert json.loads(request.content) == payload
+        assert "test-simulator-secret" not in json.dumps(payload)
+    finally:
+        client.close()
 
 
 def _module(name: str) -> types.ModuleType:
@@ -256,3 +309,76 @@ def test_tau2_student_agent_writes_request_response_sidecar(tmp_path, monkeypatc
     assert events[0]["request"]["benchmark"] == "tau2_airline"
     assert events[0]["request"]["case_id"] == "3"
     assert events[1]["response"]["content"] == "hello"
+
+
+@pytest.mark.parametrize(
+    "policy", ["", 'Airline policy: "no insurance" means deny cancellation.\n\u89c4\u5219\uff1a\u4e0d\u5f97\u64c5\u81ea\u53d6\u6d88\u3002\n' * 500],
+    ids=["empty-policy", "long-unicode-policy"],
+)
+def test_tau2_policy_reaches_jsonl_child_on_every_message_type(tmp_path, monkeypatch, policy):
+    module, _ = _load_tau2_entry_with_stubs(monkeypatch)
+    sidecar = tmp_path / "agent_events.jsonl"
+    monkeypatch.setenv("COURSE_TAU2_AGENT_TRAJECTORY", str(sidecar))
+    # Use the real IPC/AgentRequest parser; this child needs no agent strategy/API.
+    child = textwrap.dedent('''
+        import json, sys
+        from course_agent.protocol import AgentRequest, AgentResponse
+        for line in sys.stdin:
+            request = AgentRequest.from_dict(json.loads(line))
+            response = AgentResponse.final(request.request_id, json.dumps(request.to_dict()))
+            print(json.dumps(response.to_dict()), flush=True)
+    ''')
+    monkeypatch.setenv("COURSE_AGENT_PROCESS_COMMAND", json.dumps(["{python}", "-u", "-c", child]))
+    monkeypatch.setenv("COURSE_STUDENT_API_KEY", "test-ipc-token")
+    monkeypatch.setenv("TAU2_CURRENT_TASK_ID", "49")
+
+    class Tool:
+        openai_schema = {"type": "function", "function": {
+            "name": "get_reservation_details", "parameters": {"type": "object"},
+        }}
+
+    user = module.UserMessage()
+    user.content = "Please cancel my flight."
+    tool = module.ToolMessage()
+    tool.id, tool.content = "lookup-1", '{"insurance":"no"}'
+    other = module.ToolMessage()
+    other.id, other.content = "lookup-2", '{"user_id":"u1"}'
+    multi = module.MultiToolMessage()
+    multi.tool_messages = [tool, other]
+    expected = [
+        {"message_type": "user", "content": "Please cancel my flight."},
+        {"message_type": "tool_result", "tool_call_id": "lookup-1",
+         "tool_name": "get_reservation_details", "content": '{"insurance":"no"}'},
+        {"message_type": "tool_results", "tool_results": [
+            {"tool_call_id": "lookup-1", "tool_name": "get_reservation_details", "content": '{"insurance":"no"}'},
+            {"tool_call_id": "lookup-2", "tool_name": "get_user_details", "content": '{"user_id":"u1"}'},
+        ]},
+    ]
+    limits = {"case_timeout_sec": 300, "max_agent_turns": 3, "max_tool_calls_per_turn": 3}
+    agent = module.StudentJSONLAgent(
+        tools=[Tool()], domain_policy=policy, student_root=str(ROOT),
+        python=sys.executable, timeout=5, limits=limits,
+    )
+    state = agent.get_init_state()
+    state.tool_names = {"lookup-1": "get_reservation_details", "lookup-2": "get_user_details"}
+    received = []
+    try:
+        for step, (message, observation) in enumerate(zip([user, tool, multi], expected, strict=True)):
+            response, state = agent.generate_next_message(message, state)
+            request = json.loads(response.content)
+            received.append(request)
+            assert request["observation"] == {**observation, "domain_policy": policy}
+            assert request["limits"] == limits
+            assert request["tools"][0] == Tool.openai_schema
+            assert [t["function"]["name"] for t in request["tools"]] == ["get_reservation_details", "respond_to_user"]
+            assert request["case_id"] == "49"
+            assert request["benchmark"] == "tau2_airline"
+            assert request["step"] == step
+            assert request["context_id"] == state.context_id
+        assert state.step == 3
+    finally:
+        agent.close()
+    events = [json.loads(line) for line in sidecar.read_text().splitlines()]
+    assert [e["event"] for e in events] == ["request", "response"] * 3
+    assert [e["request"] for e in events if e["event"] == "request"] == received
+    assert [e["response"]["request_id"] for e in events if e["event"] == "response"] == [r["request_id"] for r in received]

@@ -1,19 +1,18 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 import json
 import os
 from pathlib import Path
 from typing import Any
+import uuid
 
 
 @dataclass(frozen=True)
 class ChatConfig:
-    endpoint: str
-    api_version: str
-    deployment: str
-    api_key: str
+    base_url: str
+    api_key: str = field(repr=False)
     model: str
     timeout_sec: int
     max_input_tokens: int
@@ -49,22 +48,17 @@ def _int_env(name: str, default: int) -> int:
 
 def load_chat_config() -> ChatConfig:
     required_names = [
-        "AZURE_OPENAI_ENDPOINT",
-        "AZURE_OPENAI_API_VERSION",
-        "AZURE_OPENAI_DEPLOYMENT",
-        "AZURE_OPENAI_API_KEY",
+        "COURSE_API_KEY",
+        "OPENAI_BASE_URL",
     ]
     missing = [name for name in required_names if not os.getenv(name)]
     if missing:
         raise RuntimeError(f"Missing required LLM environment variables: {', '.join(missing)}")
 
-    deployment = os.environ["AZURE_OPENAI_DEPLOYMENT"]
     return ChatConfig(
-        endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
-        api_version=os.environ["AZURE_OPENAI_API_VERSION"],
-        deployment=deployment,
-        api_key=os.environ["AZURE_OPENAI_API_KEY"],
-        model=os.getenv("COURSE_LLM_MODEL", deployment),
+        base_url=os.environ["OPENAI_BASE_URL"].strip().rstrip("/"),
+        api_key=os.environ["COURSE_API_KEY"],
+        model=os.getenv("COURSE_LLM_MODEL", "gpt-5-mini"),
         timeout_sec=_int_env("COURSE_LLM_TIMEOUT_SEC", 300),
         max_input_tokens=_int_env("COURSE_LLM_MAX_INPUT_TOKENS", 64000),
         max_output_tokens=_int_env("COURSE_LLM_MAX_OUTPUT_TOKENS", 4096),
@@ -107,7 +101,7 @@ class CourseLLMClient:
         kwargs: dict[str, Any] = {
             "model": self.config.model,
             "messages": messages,
-            "max_tokens": max_output_tokens,
+            "max_completion_tokens": max_output_tokens,
             "timeout": timeout,
         }
         if tools:
@@ -119,6 +113,12 @@ class CourseLLMClient:
         for attempt in range(max_attempts):
             if max_calls and self.calls_made >= max_calls:
                 raise RuntimeError(f"LLM call limit exceeded: {max_calls}") from last_exc
+            call_id = uuid.uuid4().hex
+            _record_llm_usage_event({
+                "event": "llm_call_started", "call_id": call_id,
+                "provider": "hkust_genai", "model": self.config.model,
+                "attempt": attempt + 1, "estimated_input_tokens": estimated_input_tokens,
+            })
             try:
                 response = completions.create(**kwargs)
             except Exception as exc:
@@ -127,10 +127,10 @@ class CourseLLMClient:
                 _record_llm_usage_event(
                     {
                         "event": "llm_call",
+                        "call_id": call_id,
                         "status": "error",
-                        "provider": "azure_openai",
+                        "provider": "hkust_genai",
                         "model": self.config.model,
-                        "deployment": self.config.deployment,
                         "attempt": attempt + 1,
                         "estimated_input_tokens": estimated_input_tokens,
                         "usage": {},
@@ -143,10 +143,10 @@ class CourseLLMClient:
             _record_llm_usage_event(
                 {
                     "event": "llm_call",
+                    "call_id": call_id,
                     "status": "success",
-                    "provider": "azure_openai",
+                    "provider": "hkust_genai",
                     "model": self.config.model,
-                    "deployment": self.config.deployment,
                     "attempt": attempt + 1,
                     "estimated_input_tokens": estimated_input_tokens,
                     "usage": result.usage or {},
@@ -158,14 +158,16 @@ class CourseLLMClient:
 
 def _make_openai_client(config: ChatConfig) -> Any:
     try:
-        from openai import AzureOpenAI
+        from openai import OpenAI
     except ImportError as exc:
         raise RuntimeError("The OpenAI SDK is not installed. Run `uv sync --locked` in student_release.") from exc
-    return AzureOpenAI(
-        azure_endpoint=config.endpoint,
-        api_version=config.api_version,
+    return OpenAI(
+        base_url=config.base_url,
         api_key=config.api_key,
+        default_headers={"api-key": config.api_key},
         timeout=config.timeout_sec,
+        # CourseLLMClient owns retries and usage accounting.
+        max_retries=0,
     )
 
 

@@ -6,9 +6,12 @@ There are two credential modes in the student release.
 
 Students may copy `env.student.sh.example` to `env.student.local.sh` and put their own API key in that local file. The local env file is gitignored, rejected by `build_submission.py`, and never included in `submission.zip`.
 
-Local official-public runs use the same `COURSE_API_KEY` for the student's agent and the environment user simulator. The models are separate: the student agent defaults to `gpt-5-mini`, while tau2's user simulator defaults to `azure/gpt-4o-mini`.
+Local official-public runs use the same HKUST GenAI `COURSE_API_KEY` for the student's agent and the environment user simulator. The models are separate: the student agent defaults to `gpt-5-mini`, while tau2's user simulator defaults to `openai/gpt-4o-mini`.
 
-For the HKUST/Azure gateway, tau2 must use LiteLLM's Azure provider prefix. `openai/gpt-4o-mini` routes to the public OpenAI API and will reject the school gateway key.
+Both use `OPENAI_BASE_URL=https://hkust.azure-api.net/hkust-genai/v1`.
+The `openai/` prefix selects LiteLLM's OpenAI-compatible protocol; the explicit
+base URL selects the HKUST gateway. Course code adds the required `api-key`
+header. Never put keys in `TAU2_USER_LLM_ARGS`, CLI arguments, or task JSON.
 
 ## Final Grading
 

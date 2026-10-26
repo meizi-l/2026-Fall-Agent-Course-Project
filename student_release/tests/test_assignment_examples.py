@@ -6,9 +6,9 @@ def test_public_cases_example_has_expected_final_public_cases():
     data = json.loads(Path("task_configs/public_cases.json").read_text())
 
     assert data["schema_version"] == "1.0"
-    assert data["assignment_id"] == "course-agent-project-2026-public-handbook-v1"
+    assert data["assignment_id"] == "course-agent-project-2026-public-40-v2"
     assert set(data["benchmarks"]) == {"mcpmark", "tau2_airline", "deepplanning"}
-    expected_counts = {"mcpmark": 8, "tau2_airline": 6, "deepplanning": 6}
+    expected_counts = {"mcpmark": 16, "tau2_airline": 12, "deepplanning": 12}
     seen_case_keys = set()
     for name, benchmark in data["benchmarks"].items():
         assert benchmark["enabled"] is True
@@ -21,7 +21,7 @@ def test_public_cases_example_has_expected_final_public_cases():
             seen_case_keys.add(case["case_key"])
 
     mcpmark_case_ids = {case["case_id"] for case in data["benchmarks"]["mcpmark"]["cases"]}
-    assert mcpmark_case_ids == {
+    assert {
         "filesystem/file_context/pattern_matching",
         "filesystem/threestudio/requirements_completion",
         "postgres/employees/management_structure_analysis",
@@ -30,19 +30,22 @@ def test_public_cases_example_has_expected_final_public_cases():
         "postgres/lego/transactional_inventory_transfer",
         "postgres/chinook/employee_hierarchy_management",
         "postgres/sports/team_roster_management",
-    }
+    } <= mcpmark_case_ids
     mcpmark_services = {case["official_task_path"].split("/", 1)[0] for case in data["benchmarks"]["mcpmark"]["cases"]}
     assert mcpmark_services == {"filesystem", "postgres"}
 
+    tau2_case_ids = {case["case_id"] for case in data["benchmarks"]["tau2_airline"]["cases"]}
+    assert {"49", "40", "20", "28", "36", "17"} <= tau2_case_ids
+
     deepplanning_case_ids = {case["case_id"] for case in data["benchmarks"]["deepplanning"]["cases"]}
-    assert deepplanning_case_ids == {
+    assert {
         "shopping/level_1/case_10",
         "shopping/level_1/case_15",
         "shopping/level_2/case_18",
         "shopping/level_2/case_33",
         "shopping/level_3/case_18",
         "shopping/level_3/case_14",
-    }
+    } <= deepplanning_case_ids
 
 
 def test_public_cases_scoring_metadata_matches_runner_contract():

@@ -24,7 +24,11 @@ container_runtime_override=${MCPMARK_CONTAINER_RUNTIME:-""}
 filesystem_server_package=${MCPMARK_FILESYSTEM_SERVER_PACKAGE:-"@modelcontextprotocol/server-filesystem@2025.12.18"}
 filesystem_server_root=${MCPMARK_FILESYSTEM_SERVER_ROOT:-"$course_root/third_party/.local/mcp-filesystem-server"}
 filesystem_server_js="$filesystem_server_root/node_modules/@modelcontextprotocol/server-filesystem/dist/index.js"
-postgres_mcp_package=${MCPMARK_POSTGRES_MCP_PACKAGE:-"postgres-mcp==0.3.0"}
+postgres_mcp_version="0.3.0+course1"
+postgres_mcp_package="postgres-mcp==$postgres_mcp_version"
+postgres_mcp_wheel_name="postgres_mcp-0.3.0+course1-py3-none-any.whl"
+postgres_mcp_wheel="$course_root/third_party/wheels/$postgres_mcp_wheel_name"
+postgres_mcp_checksums="$course_root/third_party/wheels/SHA256SUMS"
 pins="$course_root/third_party/locks/mcpmark-python.txt"
 postgres_pins="$course_root/third_party/locks/postgres-mcp-python.txt"
 course_filesystem_task="filesystem/standard/desktop/timeline_extraction"
@@ -47,7 +51,8 @@ Environment variables:
                      course-pinned audited commit.
   MCPMARK_PYTHON_VERSION
                      Expected Python minor version for MCPMark. Defaults to
-                     3.12 because postgres-mcp==0.3.0 requires Python >=3.12.
+                     3.12 because postgres-mcp==0.3.0+course1 requires
+                     Python >=3.12.
   MCPMARK_PYTHON     Python executable used to create the MCPMark venv.
   MCPMARK_INSTALL_PLAYWRIGHT_BROWSERS
                      Set to 1 to install Chromium for Playwright tasks.
@@ -69,10 +74,6 @@ Environment variables:
                      Project-local npm install prefix for the filesystem MCP
                      server package. Defaults to
                      course_project/third_party/.local/mcp-filesystem-server.
-  MCPMARK_POSTGRES_MCP_PACKAGE
-                     Expected Postgres MCP package installed in the
-                     separate Postgres MCP venv.
-                     Defaults to postgres-mcp==0.3.0.
   MCPMARK_POSTGRES_MCP_VENV
                      Separate venv path for the Postgres MCP server.
                      Defaults to MCPMark checkout/.venv-mcpmark-postgres-mcp.
@@ -83,6 +84,48 @@ fixture. The course MCPMark subset only uses filesystem and postgres. Use
 --check-postgres-runtime after installing Docker or Podman plus Postgres
 client tools.
 USAGE
+}
+
+verify_postgres_mcp_wheel() {
+  local python_cmd=$1
+  "$python_cmd" - "$postgres_mcp_wheel" "$postgres_mcp_checksums" <<'PY'
+import hashlib
+from pathlib import Path
+import sys
+
+wheel = Path(sys.argv[1])
+checksums = Path(sys.argv[2])
+if not wheel.is_file():
+    raise SystemExit(f"missing course Postgres MCP wheel: {wheel}")
+if not checksums.is_file():
+    raise SystemExit(f"missing course Postgres MCP checksums: {checksums}")
+
+entries = {}
+for line in checksums.read_text(encoding="utf-8").splitlines():
+    digest, name = line.split(maxsplit=1)
+    entries[name.lstrip(" *")] = digest
+expected = entries.get(wheel.name)
+if expected is None:
+    raise SystemExit(f"missing checksum for {wheel.name} in {checksums}")
+actual = hashlib.sha256(wheel.read_bytes()).hexdigest()
+if actual != expected:
+    raise SystemExit(f"checksum mismatch for {wheel}: {actual}; expected {expected}")
+PY
+}
+
+check_postgres_mcp_python_env() {
+  "$postgres_mcp_python" - "$postgres_mcp_version" <<'PY'
+import importlib.metadata
+import sys
+
+expected = sys.argv[1]
+actual = importlib.metadata.version("postgres-mcp")
+if actual != expected:
+    raise SystemExit(f"postgres-mcp version {actual}; expected {expected}")
+PY
+  "$postgres_mcp_python" "$script_dir/check_python_pins.py" "$postgres_pins"
+  "$postgres_mcp_python" -m pip check
+  verify_postgres_mcp_wheel "$postgres_mcp_python"
 }
 
 resolve_course_python() {
@@ -215,19 +258,7 @@ check_postgres_runtime() {
   echo "PSQL=$(command -v psql)"
   echo "CREATEDB=$(command -v createdb)"
   echo "PG_RESTORE=$(command -v pg_restore)"
-  "$postgres_mcp_python" - "$postgres_mcp_package" <<'PY'
-import importlib.metadata
-import sys
-
-expected = sys.argv[1].split("==", 1)[1]
-actual = importlib.metadata.version("postgres-mcp")
-mcp_version = importlib.metadata.version("mcp")
-if actual != expected:
-    raise SystemExit(f"postgres-mcp version {actual}; expected {expected}")
-if int(mcp_version.split(".", 1)[0]) >= 2:
-    raise SystemExit(f"mcp SDK version {mcp_version}; expected <2 for postgres-mcp compatibility")
-PY
-  "$postgres_mcp_python" "$script_dir/check_python_pins.py" "$postgres_pins"
+  check_postgres_mcp_python_env
 
   echo "POSTGRES_MCP_COMMAND=$postgres_mcp_venv_dir/bin/postgres-mcp"
   echo "POSTGRES_CLIENT_MAJOR=$postgres_client_major"
@@ -446,8 +477,10 @@ fi
 if [[ ! -x "$postgres_mcp_python" ]]; then
   "$python_cmd" -m venv "$postgres_mcp_venv_dir"
 fi
+verify_postgres_mcp_wheel "$python_cmd"
 "$postgres_mcp_python" -m pip install --upgrade pip
-"$postgres_mcp_python" -m pip install -r "$postgres_pins" "$postgres_mcp_package" "mcp<2"
+"$postgres_mcp_python" -m pip install --only-binary=pglast -r "$postgres_pins" "$postgres_mcp_wheel"
+check_postgres_mcp_python_env
 "$postgres_mcp_python" -m pip freeze > "$target/.course_postgres_mcp.freeze.txt"
 
 if [[ "$install_playwright_browsers" == "1" ]]; then

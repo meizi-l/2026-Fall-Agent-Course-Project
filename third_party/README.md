@@ -282,6 +282,18 @@ bash third_party/setup_mcpmark.sh
 bash third_party/setup_mcpmark.sh --check-only
 ```
 
+The setup script creates two separate Python environments:
+
+- `.venv-mcpmark` runs the MCPMark task framework.
+- `.venv-mcpmark-postgres-mcp` runs the PostgreSQL MCP tool server.
+
+Run the setup script as provided. Do not combine the two lock files or install
+both sets of packages into one virtual environment. After pulling an updated
+course release, rerun `bash third_party/setup_mcpmark.sh` without
+`--check-only` to install the updated dependencies. Then run
+`bash third_party/setup_mcpmark.sh --check-only` to verify the installed
+versions.
+
 2. Install pinned project-local Node.js plus the pinned filesystem MCP server:
 
 ```bash
@@ -347,7 +359,16 @@ Pinned/reproducible runtime:
 - Node.js: exact `v20.18.3`, installed project-locally by `--local-node`.
 - Filesystem MCP server: exact `@modelcontextprotocol/server-filesystem@2025.12.18`, installed under `third_party/.local`.
 - PostgreSQL server: exact `pgvector/pgvector:0.8.0-pg17-bookworm` container image.
-- Postgres MCP server: exact `postgres-mcp==0.3.0` in `third_party/mcpmark/.venv-mcpmark-postgres-mcp`, with MCP SDK `<2` for compatibility.
+- Postgres MCP server: exact `postgres-mcp==0.3.0+course1` in
+  `third_party/mcpmark/.venv-mcpmark-postgres-mcp`, with `mcp==1.30.0`.
+  The bundled course wheel is based on official `postgres-mcp` v0.3.0. It
+  replaces the unavailable `pglast==7.2.0` dependency with the tested binary
+  wheel `pglast==7.21`; the server runtime code is unchanged.
+  `setup_mcpmark.sh` verifies and installs the course wheel automatically.
+- `pglast==7.21`: installed as a binary wheel only. Python 3.12 wheels are
+  available for the tested macOS arm64, macOS x86-64, and
+  AlmaLinux-compatible manylinux x86-64 platforms, so setup does not compile
+  it locally.
 
 Host utilities:
 
@@ -370,7 +391,12 @@ as PostgreSQL client tools, or as a system Node fallback.
 | Filesystem MCP server | `@modelcontextprotocol/server-filesystem@2025.12.18` at `course_project/third_party/.local/mcp-filesystem-server` |
 | Postgres container image | `pgvector/pgvector:0.8.0-pg17-bookworm` |
 | PostgreSQL client tools | major version 17 for `psql`, `createdb`, `pg_restore` |
-| Postgres MCP server | `postgres-mcp==0.3.0` with `mcp<2` |
+| Postgres MCP server | course wheel `postgres-mcp==0.3.0+course1`, based on official v0.3.0 commit `7179ab0336396f819e23b0b012a9c284be10fac3` |
+| Postgres MCP SQL parser | `pglast==7.21` installed from a platform wheel |
+| Postgres MCP SDK | `mcp==1.30.0` |
+
+Students should use `setup_mcpmark.sh` rather than build or install the course
+wheel manually.
 
 
 ### Minimal troubleshooting

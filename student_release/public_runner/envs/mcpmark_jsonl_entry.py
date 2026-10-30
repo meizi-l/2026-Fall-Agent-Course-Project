@@ -18,7 +18,7 @@ except ModuleNotFoundError:
 
 
 FILESYSTEM_SERVER_PACKAGE = "@modelcontextprotocol/server-filesystem@2025.12.18"
-POSTGRES_MCP_PACKAGE = "postgres-mcp==0.3.0"
+POSTGRES_MCP_PACKAGE = "postgres-mcp==0.3.0+course1"
 
 
 def resolve_public_case(case_id: str, case_config: dict[str, Any] | None = None) -> MCPMarkCase:

@@ -15,7 +15,7 @@ from public_runner.jsonl_ipc import JSONLProcess, stop_process
 
 
 MCPMARK_FILESYSTEM_SERVER_PACKAGE = "@modelcontextprotocol/server-filesystem@2025.12.18"
-MCPMARK_POSTGRES_MCP_PACKAGE = "postgres-mcp==0.3.0"
+MCPMARK_POSTGRES_MCP_PACKAGE = "postgres-mcp==0.3.0+course1"
 
 
 def _repo_root() -> Path:

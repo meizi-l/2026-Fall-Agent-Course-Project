@@ -145,6 +145,18 @@ def test_mcpmark_setup_script_pins_repo_and_uses_course_python():
     assert "--check-postgres-runtime" in script_text
 
 
+def test_mcpmark_setup_installs_and_verifies_course_postgres_mcp_wheel():
+    course_root = Path(__file__).resolve().parents[2]
+    script_text = (course_root / "third_party" / "setup_mcpmark.sh").read_text(encoding="utf-8")
+
+    assert "postgres_mcp-0.3.0+course1-py3-none-any.whl" in script_text
+    assert 'postgres_mcp_version="0.3.0+course1"' in script_text
+    assert "--only-binary=pglast" in script_text
+    assert '"$postgres_mcp_python" -m pip check' in script_text
+    assert "verify_postgres_mcp_wheel" in script_text
+    assert "hashlib.sha256" in script_text
+
+
 def test_mcpmark_runtime_check_script_wraps_all_course_checks():
     course_root = Path(__file__).resolve().parents[2]
     script = course_root / "third_party" / "check_mcpmark_runtimes.sh"

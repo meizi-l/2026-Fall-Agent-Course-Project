@@ -19,6 +19,12 @@ tool result. Include these rules in your LLM context and maintain conversation
 state across turns using `context_id`. The runner supplies observations and
 rules; your agent decides how to use them.
 
+For official DeepPlanning Shopping, `request.observation["domain_policy"]`
+contains the level-specific optimization objective. Include it in your LLM
+context alongside the original `request.observation["query"]`. Agents that
+build their LLM context from `query` alone must also read `domain_policy` to
+receive this objective.
+
 The starter template is separated into sections such as
 `##### LOCKED COURSE INTERFACE`, `##### RESPONSE SCHEMA REQUIREMENTS`,
 `##### OPTIONAL COURSE HELPERS`, `##### STUDENT-DESIGNED BENCHMARK LOGIC`, and

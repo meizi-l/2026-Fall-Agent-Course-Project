@@ -76,6 +76,22 @@ class DeepPlanningShoppingSession:
             "level": self.case.level,
             "shopping_case_id": self.case.sample_id,
             "query": self.query,
+            "domain_policy": {
+                1: (
+                    "Choose the lowest-priced cart that satisfies the requested "
+                    "items and quantities."
+                ),
+                2: (
+                    "Choose the lowest-priced cart that satisfies the item requirements "
+                    "and the stated budget, including both bounds if the shopper "
+                    "specifies a range."
+                ),
+                3: (
+                    "Compare product and eligible coupon combinations together. "
+                    "Choose the cart with the lowest post-discount total that satisfies "
+                    "the item requirements and any stated budget."
+                ),
+            }[self.case.level],
             "cart": self._load_cart(),
         }
 

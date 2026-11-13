@@ -71,27 +71,50 @@ class DeepPlanningShoppingSession:
 
     def observe(self) -> dict[str, Any]:
         self._require_started()
+        level = self.case.level
+
+        shared_policy = (
+            "Build a cart that satisfies the shopper's requested items, quantities, "
+            "and any stated delivery requirements. If the request leaves details "
+            "such as size or gender unspecified, use the shopper's profile to "
+            "choose suitable products. Before finishing, verify the final cart "
+            "with get_cart_info and report its contents and total."
+        )
+        level_policy = {
+            1: (
+                "Choose the cart with the lowest total price that meets "
+                "the shopper's requirements."
+            ),
+            2: (
+                "Choose the cart with the lowest total price that meets the "
+                "shopper's requirements and stated budget. Respect both bounds "
+                "if a budget range is given. If the item requirements can be met "
+                "but no cart fits the budget, explain this and describe the "
+                "lowest-priced cart that meets the other requirements, including "
+                "its total."
+            ),
+            3: (
+                "Compare product and coupon combinations together, including "
+                "carts with no coupons. Choose the cart with the lowest final "
+                "total after discounts that meets the shopper's requirements and "
+                "any stated budget. Respect both bounds if a budget range is "
+                "given. Use get_user_info to check which coupons the shopper "
+                "owns and in what quantities. Use the shopping tools' results "
+                "to determine coupon eligibility, stacking, and final prices. "
+                "Apply the chosen coupons to the cart and report the coupons "
+                "used and their quantities. If the item requirements can be "
+                "met but no cart fits the budget, explain this and describe "
+                "the cheapest cart that meets the other requirements, including "
+                "its total after eligible discounts."
+            ),
+        }[level]
+
         return {
-            "case_id": f"shopping/level_{self.case.level}/{self.case.case_dir_name}",
-            "level": self.case.level,
+            "case_id": f"shopping/level_{level}/{self.case.case_dir_name}",
+            "level": level,
             "shopping_case_id": self.case.sample_id,
             "query": self.query,
-            "domain_policy": {
-                1: (
-                    "Choose the lowest-priced cart that satisfies the requested "
-                    "items and quantities."
-                ),
-                2: (
-                    "Choose the lowest-priced cart that satisfies the item requirements "
-                    "and the stated budget, including both bounds if the shopper "
-                    "specifies a range."
-                ),
-                3: (
-                    "Compare product and eligible coupon combinations together. "
-                    "Choose the cart with the lowest post-discount total that satisfies "
-                    "the item requirements and any stated budget."
-                ),
-            }[self.case.level],
+            "domain_policy": f"{shared_policy}\n\n{level_policy}",
             "cart": self._load_cart(),
         }
 

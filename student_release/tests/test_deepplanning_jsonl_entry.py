@@ -11,6 +11,15 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 
 
+EXPECTED_SHARED_POLICY = (
+    "Build a cart that satisfies the shopper's requested items, quantities, "
+    "and any stated delivery requirements. If the request leaves details "
+    "such as size or gender unspecified, use the shopper's profile to "
+    "choose suitable products. Before finishing, verify the final cart "
+    "with get_cart_info and report its contents and total."
+)
+
+
 def _load_entry():
     spec = importlib.util.spec_from_file_location(
         "deepplanning_jsonl_entry_under_test",
@@ -50,22 +59,40 @@ def test_deepplanning_entry_rejects_non_shopping_case_id():
         (
             1,
             "  Please buy two blue shirts.\n",
-            "Choose the lowest-priced cart that satisfies the requested "
-            "items and quantities.",
+            EXPECTED_SHARED_POLICY + "\n\n" + (
+                "Choose the cart with the lowest total price that meets "
+                "the shopper's requirements."
+            ),
         ),
         (
             2,
             "  Please buy two blue shirts. My budget is between 100 and 200.\n",
-            "Choose the lowest-priced cart that satisfies the item requirements "
-            "and the stated budget, including both bounds if the shopper "
-            "specifies a range.",
+            EXPECTED_SHARED_POLICY + "\n\n" + (
+                "Choose the cart with the lowest total price that meets the "
+                "shopper's requirements and stated budget. Respect both bounds "
+                "if a budget range is given. If the item requirements can be met "
+                "but no cart fits the budget, explain this and describe the "
+                "lowest-priced cart that meets the other requirements, including "
+                "its total."
+            ),
         ),
         (
             3,
             "  Please buy two blue shirts. My budget is 200.\n",
-            "Compare product and eligible coupon combinations together. "
-            "Choose the cart with the lowest post-discount total that satisfies "
-            "the item requirements and any stated budget.",
+            EXPECTED_SHARED_POLICY + "\n\n" + (
+                "Compare product and coupon combinations together, including "
+                "carts with no coupons. Choose the cart with the lowest final "
+                "total after discounts that meets the shopper's requirements and "
+                "any stated budget. Respect both bounds if a budget range is "
+                "given. Use get_user_info to check which coupons the shopper "
+                "owns and in what quantities. Use the shopping tools' results "
+                "to determine coupon eligibility, stacking, and final prices. "
+                "Apply the chosen coupons to the cart and report the coupons "
+                "used and their quantities. If the item requirements can be "
+                "met but no cart fits the budget, explain this and describe "
+                "the cheapest cart that meets the other requirements, including "
+                "its total after eligible discounts."
+            ),
         ),
     ],
     ids=["level_1", "level_2", "level_3"],
